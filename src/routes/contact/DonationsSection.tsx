@@ -20,7 +20,7 @@ export function DonationsSection({ customer }: { customer: CustomerRow }) {
     return (
       <section className="card">
         <h2 className="font-semibold">Donations</h2>
-        <p className="text-ink-400 text-sm mt-2">Loading...</p>
+        <p className="text-ink-400 dark:text-ink-500 text-sm mt-2">Loading...</p>
       </section>
     );
   }
@@ -41,14 +41,14 @@ export function DonationsSection({ customer }: { customer: CustomerRow }) {
     <section className="card space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">Donations</h2>
-        <span className="text-sm text-ink-500">{formatCents(total)} total</span>
+        <span className="text-sm text-ink-500 dark:text-ink-400">{formatCents(total)} total</span>
       </div>
-      <ul className="divide-y divide-ink-100">
+      <ul className="divide-y divide-ink-100 dark:divide-ink-800">
         {rows.map((d) => (
           <li key={d.id} className="py-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="font-medium">{formatCents(d.amount_cents, d.currency)}</div>
-              <div className="text-xs text-ink-500 truncate">
+              <div className="text-xs text-ink-500 dark:text-ink-400 truncate">
                 {d.received_date} - {d.method}
                 {d.receipt_number && ` - #${d.receipt_number}`}
                 {d.edited_at && ' - edited'}
@@ -65,7 +65,7 @@ export function DonationsSection({ customer }: { customer: CustomerRow }) {
                   PDF
                 </button>
               )}
-              <button type="button" className="text-xs text-ink-600" onClick={() => setEditing(d)}>
+              <button type="button" className="text-xs text-ink-600 dark:text-ink-300" onClick={() => setEditing(d)}>
                 Edit
               </button>
               <button

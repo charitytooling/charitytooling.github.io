@@ -60,10 +60,12 @@ export function useFollowUps(customerId: string | undefined) {
 }
 
 export type CalendarFollowUp = FollowUpRow & {
-  customer: Pick<
-    Database['public']['Tables']['customers']['Row'],
-    'id' | 'display_name' | 'first_name' | 'last_name' | 'email'
-  >;
+  customer: Pick<Database['public']['Tables']['customers']['Row'], 'id' | 'display_name'> & {
+    customer_contacts: Pick<
+      Database['public']['Tables']['customer_contacts']['Row'],
+      'first_name' | 'last_name' | 'email' | 'is_primary' | 'sort_order' | 'created_at'
+    >[];
+  };
 };
 
 export function useFollowUpsInRange(args: {
@@ -84,7 +86,9 @@ export function useFollowUpsInRange(args: {
     queryFn: async (): Promise<CalendarFollowUp[]> => {
       const { data, error } = await supabase
         .from('follow_ups')
-        .select('*, customer:customers!inner(id, display_name, first_name, last_name, email)')
+        .select(
+          '*, customer:customers!inner(id, display_name, customer_contacts(first_name, last_name, email, is_primary, sort_order, created_at))',
+        )
         .eq('charity_id', args.charityId!)
         .in('status', args.statuses)
         .gte('due_date', args.fromYmd)

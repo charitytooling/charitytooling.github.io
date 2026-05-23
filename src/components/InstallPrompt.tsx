@@ -54,10 +54,10 @@ export function InstallPrompt() {
         <div className="mx-auto max-w-3xl card flex items-center justify-between gap-3">
           <div>
             <p className="font-semibold">Install CharityTooling</p>
-            <p className="text-sm text-ink-500">Faster launch and offline access.</p>
+            <p className="text-sm text-ink-500 dark:text-ink-400">Faster launch and offline access.</p>
           </div>
           <div className="flex gap-2">
-            <button type="button" className="text-sm text-ink-500" onClick={dismiss}>
+            <button type="button" className="text-sm text-ink-500 dark:text-ink-400" onClick={dismiss}>
               Later
             </button>
             <button

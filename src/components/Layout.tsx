@@ -5,7 +5,7 @@ import { InstallPrompt } from './InstallPrompt';
 
 export function Layout() {
   return (
-    <div className="min-h-screen flex flex-col bg-ink-50">
+    <div className="min-h-screen flex flex-col bg-ink-50 dark:bg-ink-950">
       <TopBar />
       <main className="flex-1 overflow-y-auto pb-24 safe-top">
         <Outlet />

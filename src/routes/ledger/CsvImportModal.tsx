@@ -102,14 +102,16 @@ export function CsvImportModal({ charityId, onClose }: { charityId: string; onCl
 
   const importMut = useMutation({
     mutationFn: async () => {
-      // Dedupe by email (case-insensitive) against existing customers.
+      // Dedupe by email (case-insensitive) against existing customer
+      // contacts in this charity. Email lives on customer_contacts now, so
+      // join through there and read back the customer ids we already have.
       const emails = importable
         .map((r) => r.email?.toLowerCase())
         .filter((e): e is string => !!e);
       let existing: Set<string> = new Set();
       if (emails.length) {
         const { data: existingRows, error } = await supabase
-          .from('customers')
+          .from('customer_contacts')
           .select('email')
           .eq('charity_id', charityId)
           .in('email', emails);
@@ -122,10 +124,44 @@ export function CsvImportModal({ charityId, onClose }: { charityId: string; onCl
       for (let i = 0; i < fresh.length; i += 200) batches.push(fresh.slice(i, i + 200));
       let inserted = 0;
       for (const batch of batches) {
-        const { error } = await supabase
+        // Insert customers first (only the columns that still live on
+        // public.customers) and read back the new ids so we can attach the
+        // seeded primary contact for each row.
+        const customerPayload = batch.map((r) => ({
+          charity_id: charityId,
+          display_name: r.display_name,
+          website: r.website,
+        }));
+        const { data: createdRows, error } = await supabase
           .from('customers')
-          .insert(batch.map((r) => ({ ...r, charity_id: charityId })));
+          .insert(customerPayload)
+          .select('id');
         if (error) throw error;
+        const ids = (createdRows ?? []).map((r) => r.id);
+        if (ids.length !== batch.length) {
+          throw new Error('Insert returned a mismatched number of rows.');
+        }
+
+        // Best-effort contact seed for rows that carry any person fields.
+        const contactPayload = batch
+          .map((r, i) => ({
+            customer_id: ids[i],
+            charity_id: charityId,
+            first_name: r.first_name,
+            last_name: r.last_name,
+            email: r.email,
+            phone: r.phone,
+            is_primary: true,
+          }))
+          .filter(
+            (c) => c.first_name || c.last_name || c.email || c.phone,
+          );
+        if (contactPayload.length > 0) {
+          const { error: cErr } = await supabase
+            .from('customer_contacts')
+            .insert(contactPayload);
+          if (cErr) throw cErr;
+        }
         inserted += batch.length;
       }
       return { inserted, skipped: importable.length - fresh.length };
@@ -140,7 +176,7 @@ export function CsvImportModal({ charityId, onClose }: { charityId: string; onCl
       <Modal title="Import CSV" onClose={onClose}>
         <p>Imported {importMut.data.inserted} customer{importMut.data.inserted === 1 ? '' : 's'}.</p>
         {importMut.data.skipped > 0 && (
-          <p className="text-ink-500 text-sm mt-1">
+          <p className="text-ink-500 dark:text-ink-400 text-sm mt-1">
             Skipped {importMut.data.skipped} row{importMut.data.skipped === 1 ? '' : 's'} that matched existing emails.
           </p>
         )}
@@ -156,7 +192,7 @@ export function CsvImportModal({ charityId, onClose }: { charityId: string; onCl
       <div className="space-y-3">
         {!headerRow ? (
           <>
-            <p className="text-sm text-ink-500">
+            <p className="text-sm text-ink-500 dark:text-ink-400">
               Upload a CSV with at least one of: name, email, phone, website.
             </p>
             <button
@@ -174,7 +210,7 @@ export function CsvImportModal({ charityId, onClose }: { charityId: string; onCl
                 if (f) onFile(f);
               }}
             />
-            <div className="text-xs text-ink-500">Or paste CSV text:</div>
+            <div className="text-xs text-ink-500 dark:text-ink-400">Or paste CSV text:</div>
             <textarea
               className="field h-32 font-mono text-xs"
               value={rawText}
@@ -190,7 +226,7 @@ export function CsvImportModal({ charityId, onClose }: { charityId: string; onCl
               <div className="space-y-2">
                 {FIELDS.map((f) => (
                   <div key={f} className="flex items-center gap-2 text-sm">
-                    <span className="w-28 text-ink-500 capitalize">{f.replace('_', ' ')}</span>
+                    <span className="w-28 text-ink-500 dark:text-ink-400 capitalize">{f.replace('_', ' ')}</span>
                     <select
                       className="field flex-1"
                       value={mapping[f] ?? ''}
@@ -208,12 +244,12 @@ export function CsvImportModal({ charityId, onClose }: { charityId: string; onCl
 
             <div>
               <p className="text-sm font-medium mb-1">Preview ({importable.length} rows)</p>
-              <div className="text-xs text-ink-700 max-h-40 overflow-auto border border-ink-100 rounded-lg p-2">
+              <div className="text-xs text-ink-700 dark:text-ink-200 max-h-40 overflow-auto border border-ink-100 dark:border-ink-800 rounded-lg p-2">
                 {preview.map((p, i) => (
-                  <div key={i} className="border-b border-ink-100 py-1 last:border-b-0">
+                  <div key={i} className="border-b border-ink-100 dark:border-ink-800 py-1 last:border-b-0">
                     {(p.display_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || '(no name)')}
-                    {p.email && <span className="text-ink-400"> - {p.email}</span>}
-                    {p.phone && <span className="text-ink-400"> - {p.phone}</span>}
+                    {p.email && <span className="text-ink-400 dark:text-ink-500"> - {p.email}</span>}
+                    {p.phone && <span className="text-ink-400 dark:text-ink-500"> - {p.phone}</span>}
                   </div>
                 ))}
               </div>

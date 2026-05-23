@@ -36,17 +36,17 @@ export function StripeCallback() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-12 text-center space-y-3">
-      {status === 'pending' && <p className="text-ink-500">Finishing Stripe setup...</p>}
+      {status === 'pending' && <p className="text-ink-500 dark:text-ink-400">Finishing Stripe setup...</p>}
       {status === 'ok' && (
         <>
           <p className="text-lg font-semibold">Stripe connected.</p>
-          <p className="text-sm text-ink-500">Redirecting...</p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">Redirecting...</p>
         </>
       )}
       {status === 'error' && (
         <>
           <p className="text-lg font-semibold text-red-600">Stripe setup failed</p>
-          <p className="text-sm text-ink-500">{message}</p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{message}</p>
           <button type="button" className="btn-ghost" onClick={() => navigate(`/admin/charities/${id}`)}>
             Back to charity
           </button>

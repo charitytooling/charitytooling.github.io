@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 import { useCreateCustomer } from '@/state/customers';
+import { useCreateContact } from '@/state/contacts';
 
 const schema = z.object({
   display_name: z.string().optional(),
@@ -9,26 +11,57 @@ const schema = z.object({
   last_name: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
-  website: z.string().url().optional().or(z.literal('')),
+  website: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
 export function AddCustomerModal({ charityId, onClose }: { charityId: string; onClose: () => void }) {
   const navigate = useNavigate();
   const create = useCreateCustomer();
+  const createContact = useCreateContact();
+  const [contactWarning, setContactWarning] = useState<string | null>(null);
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>();
 
   async function onSubmit(values: FormValues) {
     const parsed = schema.parse(values);
+    setContactWarning(null);
     const created = await create.mutateAsync({
       charity_id: charityId,
       display_name: parsed.display_name || null,
-      first_name: parsed.first_name || null,
-      last_name: parsed.last_name || null,
-      email: parsed.email || null,
-      phone: parsed.phone || null,
       website: parsed.website || null,
     });
+
+    // Seed a primary contact alongside the customer when any of the person
+    // fields are filled in. The contact insert is best-effort: a failure
+    // here leaves the customer in place and the user can add contacts
+    // manually from the Contact page.
+    const hasContact = !!(
+      parsed.first_name ||
+      parsed.last_name ||
+      parsed.email ||
+      parsed.phone
+    );
+    if (hasContact) {
+      try {
+        await createContact.mutateAsync({
+          customer_id: created.id,
+          charity_id: charityId,
+          first_name: parsed.first_name || null,
+          last_name: parsed.last_name || null,
+          email: parsed.email || null,
+          phone: parsed.phone || null,
+          is_primary: true,
+        });
+      } catch (err) {
+        setContactWarning(
+          `Customer saved, but the primary contact could not be created: ${
+            err instanceof Error ? err.message : String(err)
+          }. Add it from the customer's page.`,
+        );
+        return;
+      }
+    }
+
     onClose();
     navigate(`/contact/${created.id}`);
   }
@@ -59,6 +92,9 @@ export function AddCustomerModal({ charityId, onClose }: { charityId: string; on
         {create.error && (
           <p className="text-red-600 text-sm">{(create.error as Error).message}</p>
         )}
+        {contactWarning && (
+          <p className="text-amber-700 text-sm">{contactWarning}</p>
+        )}
         <div className="flex gap-2 pt-2">
           <button type="button" className="btn-ghost flex-1" onClick={onClose} disabled={isSubmitting}>
             Cancel
@@ -86,12 +122,12 @@ export function Modal({ title, children, onClose }: { title: string; children: R
   return (
     <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-ink-900/40 px-3" onClick={onClose}>
       <div
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-xl safe-bottom"
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-ink-900 p-4 shadow-xl safe-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} className="text-ink-500 text-xl leading-none">
+          <button type="button" onClick={onClose} className="text-ink-500 dark:text-ink-400 text-xl leading-none">
             ×
           </button>
         </div>

@@ -16,7 +16,7 @@ export function BottomNav() {
   const items = showAdmin ? [...baseItems, { to: '/admin', label: 'Admin', icon: AdminIcon }] : baseItems;
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-ink-100 shadow-nav safe-bottom">
+    <nav className="fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-ink-900 border-t border-ink-100 dark:border-ink-800 shadow-nav safe-bottom">
       <ul className="mx-auto max-w-3xl flex">
         {items.map(({ to, label, icon: Icon }) => (
           <li key={to} className="flex-1">
@@ -25,7 +25,7 @@ export function BottomNav() {
               className={({ isActive }) =>
                 [
                   'flex flex-col items-center justify-center gap-1 py-2 text-xs font-medium',
-                  isActive ? 'text-accent' : 'text-ink-500 hover:text-ink-800',
+                  isActive ? 'text-accent' : 'text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100',
                 ].join(' ')
               }
             >

@@ -6,11 +6,11 @@ export function CharitySwitcher() {
   const { activeCharityId, setActiveCharityId } = useActiveCharity();
 
   if (isLoading) {
-    return <div className="text-sm text-ink-400 truncate">Loading...</div>;
+    return <div className="text-sm text-ink-400 dark:text-ink-500 truncate">Loading...</div>;
   }
 
   if (!charities || charities.length === 0) {
-    return <div className="text-sm text-ink-500 truncate">No charity yet</div>;
+    return <div className="text-sm text-ink-500 dark:text-ink-400 truncate">No charity yet</div>;
   }
 
   if (charities.length === 1) {

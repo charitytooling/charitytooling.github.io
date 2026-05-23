@@ -33,7 +33,7 @@ export function ContactNav({
       aria-label="Contact navigation"
     >
       <NavButton dir="prev" to={prevId} label={prevLabel} />
-      <div className="text-xs text-ink-500 text-center min-w-[5rem]">
+      <div className="text-xs text-ink-500 dark:text-ink-400 text-center min-w-[5rem]">
         {inQueue ? `${idx + 1} of ${queue.length}` : `${queue.length} to do`}
       </div>
       <NavButton dir="next" to={nextId} label={nextLabel} />
@@ -54,7 +54,7 @@ function NavButton({
     <span className="flex items-center gap-2">
       {dir === 'prev' && <ArrowLeftIcon className="h-4 w-4 shrink-0" />}
       <span className="flex flex-col items-start min-w-0">
-        <span className="text-xs leading-none text-ink-500">
+        <span className="text-xs leading-none text-ink-500 dark:text-ink-400">
           {dir === 'prev' ? 'Previous' : 'Next'}
         </span>
         <span className="text-sm font-medium truncate max-w-[8rem]">

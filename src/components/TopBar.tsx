@@ -8,7 +8,7 @@ export function TopBar() {
   const { data: next } = useNextFollowUpDays(activeCharityId);
 
   return (
-    <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-ink-100">
+    <header className="sticky top-0 z-20 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-ink-100 dark:border-ink-800">
       <div className="mx-auto max-w-3xl flex items-center justify-between px-4 py-3 safe-top">
         <div className="flex items-center gap-2 min-w-0">
           <img src="/icon.svg" alt="" className="h-7 w-7 shrink-0" />
@@ -18,7 +18,7 @@ export function TopBar() {
           <NavLink
             to="/calendar"
             className={({ isActive }) =>
-              ['relative rounded-lg p-2 hover:bg-ink-100', isActive ? 'text-accent' : 'text-ink-600'].join(' ')
+              ['relative rounded-lg p-2 hover:bg-ink-100 dark:hover:bg-ink-800', isActive ? 'text-accent' : 'text-ink-600 dark:text-ink-300'].join(' ')
             }
             aria-label={
               next ? `Calendar - next follow-up ${badgeLabel(next.daysUntil)}` : 'Calendar'
@@ -47,7 +47,7 @@ export function TopBar() {
           <NavLink
             to="/settings"
             className={({ isActive }) =>
-              ['rounded-lg p-2 hover:bg-ink-100', isActive ? 'text-accent' : 'text-ink-600'].join(' ')
+              ['rounded-lg p-2 hover:bg-ink-100 dark:hover:bg-ink-800', isActive ? 'text-accent' : 'text-ink-600 dark:text-ink-300'].join(' ')
             }
             aria-label="Settings"
           >

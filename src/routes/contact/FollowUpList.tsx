@@ -41,15 +41,15 @@ export function FollowUpList({
       )}
 
       {[...open, ...snoozed].length === 0 && !showNew && (
-        <p className="text-sm text-ink-500">No open follow-ups.</p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">No open follow-ups.</p>
       )}
 
       <ul className="space-y-2">
         {[...open, ...snoozed].map((f) => (
-          <li key={f.id} className="flex items-center justify-between gap-2 bg-ink-50 rounded-lg px-3 py-2">
+          <li key={f.id} className="flex items-center justify-between gap-2 bg-ink-50 dark:bg-ink-950 rounded-lg px-3 py-2">
             <div className="min-w-0">
               <div className="text-sm font-medium truncate">{f.reason ?? 'Follow up'}</div>
-              <div className="text-xs text-ink-500">
+              <div className="text-xs text-ink-500 dark:text-ink-400">
                 Due {new Date(f.due_date).toLocaleDateString()}
                 {f.status === 'snoozed' && ' - snoozed'}
               </div>
@@ -57,7 +57,7 @@ export function FollowUpList({
             <div className="flex gap-1 shrink-0">
               <button
                 type="button"
-                className="text-xs bg-white border border-ink-200 rounded-md px-2 py-1"
+                className="text-xs bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-700 rounded-md px-2 py-1"
                 onClick={() => update.mutate({ id: f.id, status: 'snoozed', due_date: addDays(f.due_date, 7) })}
               >
                 +7d
@@ -76,10 +76,10 @@ export function FollowUpList({
 
       {done.length > 0 && (
         <details className="text-xs">
-          <summary className="text-ink-500 cursor-pointer">Recently completed ({done.length})</summary>
+          <summary className="text-ink-500 dark:text-ink-400 cursor-pointer">Recently completed ({done.length})</summary>
           <ul className="mt-2 space-y-1">
             {done.map((f) => (
-              <li key={f.id} className="text-ink-500">
+              <li key={f.id} className="text-ink-500 dark:text-ink-400">
                 {f.reason ?? 'Follow up'} - {new Date(f.due_date).toLocaleDateString()}
               </li>
             ))}
@@ -104,7 +104,7 @@ function NewFollowUpForm({ onSubmit }: { onSubmit: (input: { due_date: string; r
   });
   const [reason, setReason] = useState('');
   return (
-    <div className="flex flex-col gap-2 bg-ink-50 p-3 rounded-lg">
+    <div className="flex flex-col gap-2 bg-ink-50 dark:bg-ink-950 p-3 rounded-lg">
       <input
         type="text"
         className="field"

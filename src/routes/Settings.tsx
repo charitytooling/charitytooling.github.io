@@ -12,6 +12,7 @@ import {
   saveSubscription,
 } from '@/lib/push';
 import { useProfile, useUpdateContactSort, type ContactQueueSort } from '@/state/profile';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 type Prefs = {
   followups_due: boolean;
@@ -103,7 +104,7 @@ export function SettingsPage() {
       <section className="card space-y-3">
         <div>
           <h2 className="font-semibold">Account</h2>
-          <p className="text-sm text-ink-500">{user?.email}</p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">{user?.email}</p>
         </div>
         <button type="button" className="btn-ghost w-full" onClick={() => signOut()}>
           Sign out
@@ -111,8 +112,18 @@ export function SettingsPage() {
       </section>
 
       <section className="card space-y-3">
+        <div>
+          <h2 className="font-semibold">Appearance</h2>
+          <p className="text-xs text-ink-500 dark:text-ink-400">
+            Match your system preference, or pick a fixed theme.
+          </p>
+        </div>
+        <ThemeToggle />
+      </section>
+
+      <section className="card space-y-3">
         <h2 className="font-semibold">Password</h2>
-        <p className="text-xs text-ink-500">
+        <p className="text-xs text-ink-500 dark:text-ink-400">
           Optional. Set a password to sign in without waiting for a magic-link email.
           You can keep using magic links either way.
         </p>
@@ -121,7 +132,7 @@ export function SettingsPage() {
 
       <section className="card space-y-3">
         <h2 className="font-semibold">Contact queue order</h2>
-        <p className="text-xs text-ink-500">
+        <p className="text-xs text-ink-500 dark:text-ink-400">
           Controls Previous/Next on the Contact page, and which customer opens when you tap "Contact" in the nav.
         </p>
         <ContactSortPicker />
@@ -130,11 +141,11 @@ export function SettingsPage() {
       <section className="card space-y-3">
         <h2 className="font-semibold">Notifications</h2>
         {!pushSupported() ? (
-          <p className="text-sm text-ink-500">
+          <p className="text-sm text-ink-500 dark:text-ink-400">
             This browser does not support push notifications.
           </p>
         ) : ios && !standalone ? (
-          <p className="text-sm text-ink-500">
+          <p className="text-sm text-ink-500 dark:text-ink-400">
             To receive notifications on iPhone or iPad, first install the app via Share -&gt; Add to Home Screen.
             Then open the installed app and tap "Enable" here.
           </p>
@@ -145,7 +156,7 @@ export function SettingsPage() {
                 <p className="text-sm">
                   Status: <span className="font-medium">{isSubscribed === null ? '...' : isSubscribed ? 'Enabled' : 'Not enabled'}</span>
                 </p>
-                <p className="text-xs text-ink-500">Permission: {perm}</p>
+                <p className="text-xs text-ink-500 dark:text-ink-400">Permission: {perm}</p>
               </div>
               {isSubscribed ? (
                 <button type="button" className="btn-ghost" onClick={disable}>
@@ -159,7 +170,7 @@ export function SettingsPage() {
             </div>
             {pushError && <p className="text-red-600 text-sm">{pushError}</p>}
             {perm === 'denied' && (
-              <p className="text-xs text-ink-500">
+              <p className="text-xs text-ink-500 dark:text-ink-400">
                 You denied notifications. Re-enable them in your browser/OS settings, then return here.
               </p>
             )}
@@ -167,7 +178,7 @@ export function SettingsPage() {
         )}
 
         {prefsQuery.data && (
-          <div className="border-t border-ink-100 pt-3 space-y-3">
+          <div className="border-t border-ink-100 dark:border-ink-800 pt-3 space-y-3">
             <ToggleRow
               label="Daily follow-ups due"
               description="An 8am digest when you have follow-ups due today."
@@ -214,7 +225,7 @@ function ToggleRow({
     <label className="flex items-start justify-between gap-3">
       <div>
         <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-ink-500">{description}</div>
+        <div className="text-xs text-ink-500 dark:text-ink-400">{description}</div>
       </div>
       <input
         type="checkbox"
@@ -264,7 +275,7 @@ function ContactSortPicker() {
       {CONTACT_SORT_OPTIONS.map((opt) => (
         <label
           key={opt.value}
-          className="flex items-start gap-3 rounded-lg border border-ink-100 p-3 cursor-pointer hover:bg-ink-50"
+          className="flex items-start gap-3 rounded-lg border border-ink-100 dark:border-ink-800 p-3 cursor-pointer hover:bg-ink-50 dark:hover:bg-ink-900"
         >
           <input
             type="radio"
@@ -276,7 +287,7 @@ function ContactSortPicker() {
           />
           <div>
             <div className="text-sm font-medium">{opt.label}</div>
-            <div className="text-xs text-ink-500">{opt.description}</div>
+            <div className="text-xs text-ink-500 dark:text-ink-400">{opt.description}</div>
           </div>
         </label>
       ))}

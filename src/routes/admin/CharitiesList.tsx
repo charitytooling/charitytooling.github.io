@@ -17,14 +17,14 @@ export function CharitiesList() {
         )}
       </div>
       {isLoading ? (
-        <div className="text-ink-400 text-sm">Loading...</div>
+        <div className="text-ink-400 dark:text-ink-500 text-sm">Loading...</div>
       ) : (
         <ul className="space-y-2">
           {(charities ?? []).map((c) => (
             <li key={c.id}>
               <Link to={`/admin/charities/${c.id}`} className="card block">
                 <div className="font-semibold">{c.name}</div>
-                <div className="text-xs text-ink-500 capitalize">
+                <div className="text-xs text-ink-500 dark:text-ink-400 capitalize">
                   {c.role.replace('_', ' ')} - {c.default_tz}
                 </div>
               </Link>

@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /sign-in
+
+Sitemap: https://charitytooling.com/sitemap.xml

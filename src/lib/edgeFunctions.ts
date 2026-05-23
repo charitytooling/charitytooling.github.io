@@ -16,6 +16,7 @@ export const edgeFunctions = {
     subject: string;
     body_html: string;
     template_id?: string;
+    contact_id?: string;
   }) {
     return invoke<{ ok: true; resend_id: string | null }>('send-email', args);
   },

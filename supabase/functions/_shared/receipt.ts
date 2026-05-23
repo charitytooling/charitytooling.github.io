@@ -14,6 +14,18 @@ import { renderReceiptPdf } from './pdf.ts';
 
 const BUCKET = 'receipts';
 
+// Footer appended to every receipt email. Inline-styled, no images, so it
+// renders reliably in Gmail, Apple Mail, and Outlook web.
+const CHARITYTOOLING_FOOTER_HTML = `
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0 12px" />
+    <p style="font-size:12px;color:#64748b;line-height:1.5;margin:0">
+      Sent via <a href="https://charitytooling.com" style="color:#2563eb;text-decoration:none">CharityTooling</a> -
+      we only work with charities that spend 95%+ of revenue on charitable programs,
+      verified against their IRS Form 990.
+      <a href="https://charitytooling.com" style="color:#2563eb;text-decoration:none">Learn how we verify.</a>
+    </p>
+  `;
+
 export interface IssueReceiptArgs {
   client: SupabaseClient;
   charity_id: string;
@@ -37,16 +49,26 @@ export interface IssueReceiptResult {
 export async function issueReceipt(args: IssueReceiptArgs): Promise<IssueReceiptResult> {
   const supabase = args.client;
 
-  const [charityRes, customerRes] = await Promise.all([
+  const [charityRes, customerRes, primaryRes] = await Promise.all([
     supabase.from('charities').select('*').eq('id', args.charity_id).maybeSingle(),
     supabase.from('customers').select('*').eq('id', args.customer_id).maybeSingle(),
+    supabase
+      .from('customer_contacts')
+      .select('first_name, last_name, email, phone')
+      .eq('customer_id', args.customer_id)
+      .eq('is_primary', true)
+      .maybeSingle(),
   ]);
   if (charityRes.error) throw charityRes.error;
   if (customerRes.error) throw customerRes.error;
+  if (primaryRes.error) throw primaryRes.error;
   if (!charityRes.data) throw new Error('charity-not-found');
   if (!customerRes.data) throw new Error('customer-not-found');
   const charity = charityRes.data;
   const customer = customerRes.data;
+  const primaryContact = primaryRes.data;
+  const donorEmail = primaryContact?.email ?? null;
+  if (!donorEmail) throw new Error('customer-missing-primary-email');
 
   const { data: receiptNumber, error: rnErr } = await supabase.rpc('allocate_receipt_number', {
     c_id: args.charity_id,
@@ -91,9 +113,19 @@ export async function issueReceipt(args: IssueReceiptArgs): Promise<IssueReceipt
     donationId = data.id;
   }
 
+  // Pass the primary contact alongside the customer so the PDF can render
+  // the donor's name + email without reading dropped columns off customers.
+  const customerForPdf = {
+    ...(customer as Record<string, unknown>),
+    first_name: primaryContact?.first_name ?? null,
+    last_name: primaryContact?.last_name ?? null,
+    email: donorEmail,
+    phone: primaryContact?.phone ?? null,
+  };
+
   const pdf = await renderReceiptPdf({
     charity: charity as Record<string, unknown>,
-    customer: customer as Record<string, unknown>,
+    customer: customerForPdf,
     donation: {
       receipt_number: receiptNumber as string,
       amount_cents: args.amount_cents,
@@ -113,7 +145,7 @@ export async function issueReceipt(args: IssueReceiptArgs): Promise<IssueReceipt
   await sendResendReceipt({
     fromName: (charity.resend_from_name as string) ?? (charity.name as string),
     fromEmail: (charity.resend_from_email as string) ?? Deno.env.get('RESEND_DEFAULT_FROM') ?? 'receipts@charitytooling.com',
-    toEmail: customer.email as string,
+    toEmail: donorEmail,
     charity,
     pdf,
     receiptNumber: receiptNumber as string,
@@ -124,7 +156,7 @@ export async function issueReceipt(args: IssueReceiptArgs): Promise<IssueReceipt
     charity_id: args.charity_id,
     customer_id: args.customer_id,
     subject: `Donation receipt #${receiptNumber}`,
-    to_email: customer.email,
+    to_email: donorEmail,
     status: 'sent',
     sent_by: args.created_by ?? null,
   });
@@ -157,6 +189,7 @@ async function sendResendReceipt(args: {
     <p>Thank you for your contribution to <strong>${args.charity.name as string}</strong>.</p>
     <p>Your receipt #${args.receiptNumber} for ${(args.amountCents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })} is attached.</p>
     <p>${(args.charity.receipt_disclaimer as string) ?? ''}</p>
+    ${CHARITYTOOLING_FOOTER_HTML}
   `;
 
   const r = await fetch('https://api.resend.com/emails', {

@@ -102,7 +102,7 @@ export function DonationModal({
           <textarea className="field" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
         {send.error && <p className="text-red-600 text-sm">{(send.error as Error).message}</p>}
-        <p className="text-xs text-ink-500">
+        <p className="text-xs text-ink-500 dark:text-ink-400">
           {existing
             ? 'Saving updates the donation, allocates a new receipt #, and re-sends the PDF.'
             : 'Saving issues receipt #YYMMDDHHMM and emails the donor a PDF acknowledgment via Resend.'}

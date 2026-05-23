@@ -46,7 +46,7 @@ export function CalendarPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-6">
         <h1 className="text-xl font-semibold">Calendar</h1>
-        <p className="mt-2 text-ink-500 text-sm">Pick or create a charity to see follow-ups.</p>
+        <p className="mt-2 text-ink-500 dark:text-ink-400 text-sm">Pick or create a charity to see follow-ups.</p>
       </div>
     );
   }
@@ -56,7 +56,7 @@ export function CalendarPage() {
       <header className="card space-y-3">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Calendar</h1>
-          <span className="text-xs text-ink-500">
+          <span className="text-xs text-ink-500 dark:text-ink-400">
             {q.data?.length ?? 0} follow-up{(q.data?.length ?? 0) === 1 ? '' : 's'}
           </span>
         </div>
@@ -71,13 +71,13 @@ export function CalendarPage() {
                 'rounded-full px-3 py-1.5 text-xs font-medium border',
                 filter === f.id
                   ? 'bg-accent text-white border-accent'
-                  : 'bg-white text-ink-700 border-ink-200 hover:bg-ink-50',
+                  : 'bg-white dark:bg-ink-900 text-ink-700 dark:text-ink-200 border-ink-200 dark:border-ink-700 hover:bg-ink-50 dark:hover:bg-ink-900',
               ].join(' ')}
             >
               {f.label}
             </button>
           ))}
-          <label className="ml-auto flex items-center gap-2 text-xs text-ink-600">
+          <label className="ml-auto flex items-center gap-2 text-xs text-ink-600 dark:text-ink-300">
             <input
               type="checkbox"
               checked={showOverdue}
@@ -89,7 +89,7 @@ export function CalendarPage() {
         </div>
       </header>
 
-      {q.isLoading && <div className="text-ink-400 text-sm">Loading...</div>}
+      {q.isLoading && <div className="text-ink-400 dark:text-ink-500 text-sm">Loading...</div>}
 
       {q.error && (
         <div className="card text-red-600 text-sm">
@@ -98,7 +98,7 @@ export function CalendarPage() {
       )}
 
       {!q.isLoading && !q.error && buckets.length === 0 && (
-        <div className="card text-sm text-ink-500">
+        <div className="card text-sm text-ink-500 dark:text-ink-400">
           No follow-ups in this window. Open a customer from the{' '}
           <Link to="/ledger" className="text-accent">Ledger</Link> to add one.
         </div>
@@ -131,16 +131,16 @@ function DaySection({
     <section className="card !p-0 overflow-hidden">
       <header
         className={[
-          'flex items-baseline justify-between px-4 py-2 border-b border-ink-100 bg-ink-50',
-          isToday ? 'text-accent' : isPast ? 'text-red-600' : 'text-ink-800',
+          'flex items-baseline justify-between px-4 py-2 border-b border-ink-100 dark:border-ink-800 bg-ink-50 dark:bg-ink-950',
+          isToday ? 'text-accent' : isPast ? 'text-red-600' : 'text-ink-800 dark:text-ink-100',
         ].join(' ')}
       >
         <h2 className="font-semibold text-sm">{dayLabel}</h2>
-        <span className="text-xs text-ink-500">
+        <span className="text-xs text-ink-500 dark:text-ink-400">
           {items.length} item{items.length === 1 ? '' : 's'}
         </span>
       </header>
-      <ul className="divide-y divide-ink-100">
+      <ul className="divide-y divide-ink-100 dark:divide-ink-800">
         {items.map((item) => (
           <FollowUpRowItem key={item.id} item={item} />
         ))}
@@ -163,7 +163,7 @@ function FollowUpRowItem({ item }: { item: CalendarFollowUp }) {
         >
           {name}
         </Link>
-        <div className="text-xs text-ink-500 truncate">
+        <div className="text-xs text-ink-500 dark:text-ink-400 truncate">
           {item.reason ?? 'Follow up'}
           {item.status === 'snoozed' && ' - snoozed'}
           {isDone && ' - done'}
@@ -173,7 +173,7 @@ function FollowUpRowItem({ item }: { item: CalendarFollowUp }) {
         <div className="flex gap-1 shrink-0">
           <button
             type="button"
-            className="text-xs bg-white border border-ink-200 rounded-md px-2 py-1"
+            className="text-xs bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-700 rounded-md px-2 py-1"
             onClick={() =>
               update.mutate({
                 id: item.id,
@@ -198,7 +198,7 @@ function FollowUpRowItem({ item }: { item: CalendarFollowUp }) {
       {isDone && (
         <button
           type="button"
-          className="text-xs bg-white border border-ink-200 rounded-md px-2 py-1 shrink-0"
+          className="text-xs bg-white dark:bg-ink-900 border border-ink-200 dark:border-ink-700 rounded-md px-2 py-1 shrink-0"
           onClick={() => update.mutate({ id: item.id, status: 'open' })}
           disabled={update.isPending}
         >

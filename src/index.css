@@ -4,13 +4,13 @@
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: light dark;
   }
   html, body, #root {
     height: 100%;
   }
   body {
-    @apply font-sans bg-ink-50 text-ink-900;
+    @apply font-sans bg-ink-50 text-ink-900 dark:bg-ink-950 dark:text-ink-100;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
   }
@@ -38,20 +38,28 @@
   .btn-primary {
     @apply btn bg-accent text-white hover:bg-accent-hover
            disabled:bg-ink-200 disabled:text-ink-500 disabled:cursor-not-allowed disabled:hover:bg-ink-200
-           aria-disabled:bg-ink-200 aria-disabled:text-ink-500 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-ink-200;
+           aria-disabled:bg-ink-200 aria-disabled:text-ink-500 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-ink-200
+           dark:disabled:bg-ink-800 dark:disabled:text-ink-500 dark:disabled:hover:bg-ink-800
+           dark:aria-disabled:bg-ink-800 dark:aria-disabled:text-ink-500 dark:aria-disabled:hover:bg-ink-800;
   }
   .btn-ghost {
     @apply btn bg-ink-100 text-ink-800 hover:bg-ink-200
            disabled:bg-ink-100 disabled:text-ink-400 disabled:cursor-not-allowed disabled:hover:bg-ink-100
-           aria-disabled:bg-ink-100 aria-disabled:text-ink-400 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-ink-100;
+           aria-disabled:bg-ink-100 aria-disabled:text-ink-400 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-ink-100
+           dark:bg-ink-800 dark:text-ink-100 dark:hover:bg-ink-700
+           dark:disabled:bg-ink-800 dark:disabled:text-ink-500 dark:disabled:hover:bg-ink-800
+           dark:aria-disabled:bg-ink-800 dark:aria-disabled:text-ink-500 dark:aria-disabled:hover:bg-ink-800;
   }
   .field {
-    @apply block w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-base shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;
+    @apply block w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-base shadow-sm
+           focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30
+           dark:bg-ink-900 dark:border-ink-700 dark:text-ink-50 dark:placeholder-ink-500;
   }
   .label {
-    @apply block text-sm font-medium text-ink-700 mb-1;
+    @apply block text-sm font-medium text-ink-700 mb-1 dark:text-ink-300;
   }
   .card {
-    @apply rounded-2xl bg-white p-4 shadow-sm border border-ink-100;
+    @apply rounded-2xl bg-white p-4 shadow-sm border border-ink-100
+           dark:bg-ink-900 dark:border-ink-800;
   }
 }

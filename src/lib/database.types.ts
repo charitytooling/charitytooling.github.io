@@ -94,11 +94,7 @@ export interface Database {
         Row: {
           id: string;
           charity_id: string;
-          first_name: string | null;
-          last_name: string | null;
           display_name: string | null;
-          email: string | null;
-          phone: string | null;
           website: string | null;
           address_line1: string | null;
           address_line2: string | null;
@@ -112,12 +108,41 @@ export interface Database {
           tags: string[];
           notes_summary: string | null;
           completeness_score: number;
+          ein: string | null;
+          filing_revenue: number | null;
+          filing_income: number | null;
+          filing_assets: number | null;
+          filing_tax_period: string | null;
+          archived_at: string | null;
+          archived_by: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Partial<Database['public']['Tables']['customers']['Row']> & { charity_id: string };
         Update: Partial<Database['public']['Tables']['customers']['Row']>;
+        Relationships: [];
+      };
+      customer_contacts: {
+        Row: {
+          id: string;
+          customer_id: string;
+          charity_id: string;
+          first_name: string | null;
+          last_name: string | null;
+          email: string | null;
+          phone: string | null;
+          note: string | null;
+          is_primary: boolean;
+          sort_order: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['customer_contacts']['Row']> & {
+          customer_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['customer_contacts']['Row']>;
         Relationships: [];
       };
       notes: {

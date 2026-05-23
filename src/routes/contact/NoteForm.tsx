@@ -35,7 +35,7 @@ export function NoteForm({ customerId, charityId }: { customerId: string; charit
             onClick={() => setKind(k.value)}
             className={[
               'px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap',
-              kind === k.value ? 'bg-accent text-white' : 'bg-ink-100 text-ink-700',
+              kind === k.value ? 'bg-accent text-white' : 'bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-200',
             ].join(' ')}
           >
             {k.label}

@@ -36,7 +36,7 @@ export function CharityDetail() {
   });
 
   if (charity.isLoading) {
-    return <div className="mx-auto max-w-3xl px-4 py-6 text-ink-400">Loading...</div>;
+    return <div className="mx-auto max-w-3xl px-4 py-6 text-ink-400 dark:text-ink-500">Loading...</div>;
   }
   if (charity.error || !charity.data) {
     return (
@@ -50,14 +50,14 @@ export function CharityDetail() {
     <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold truncate">{charity.data.name}</h1>
-        <Link to="/admin" className="text-ink-500 text-sm">Back</Link>
+        <Link to="/admin" className="text-ink-500 dark:text-ink-400 text-sm">Back</Link>
       </div>
 
       {canAdmin ? (
         <SettingsCard charity={charity.data} />
       ) : (
         <div className="card">
-          <p className="text-ink-500 text-sm">View-only. Admins can edit settings, members, and templates.</p>
+          <p className="text-ink-500 dark:text-ink-400 text-sm">View-only. Admins can edit settings, members, and templates.</p>
         </div>
       )}
 
@@ -81,7 +81,7 @@ function StripeSection({ charity }: { charity: Record<string, unknown> }) {
     <section className="card space-y-3">
       <h2 className="font-semibold">Card donations (Stripe)</h2>
       {connected ? (
-        <p className="text-sm text-ink-700">
+        <p className="text-sm text-ink-700 dark:text-ink-200">
           Connected to Stripe account <code className="text-xs">{charity.stripe_account_id as string}</code>.
           Donors who pay via the "Donate now" link in your emails will appear here automatically.
         </p>
@@ -91,7 +91,7 @@ function StripeSection({ charity }: { charity: Record<string, unknown> }) {
           but charges are not enabled yet. Complete onboarding in Stripe.
         </p>
       ) : (
-        <p className="text-sm text-ink-700">
+        <p className="text-sm text-ink-700 dark:text-ink-200">
           Connect Stripe to let donors pay by card directly from your emails. The charity owns the Stripe account; CharityTooling never holds funds.
         </p>
       )}
@@ -147,21 +147,21 @@ function TemplatesSection({ charityId }: { charityId: string }) {
         </button>
       </div>
       {templates.isLoading ? (
-        <div className="text-ink-400 text-sm">Loading...</div>
+        <div className="text-ink-400 dark:text-ink-500 text-sm">Loading...</div>
       ) : (templates.data ?? []).length === 0 ? (
-        <p className="text-sm text-ink-500">No templates yet.</p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">No templates yet.</p>
       ) : (
-        <ul className="divide-y divide-ink-100">
+        <ul className="divide-y divide-ink-100 dark:divide-ink-800">
           {(templates.data ?? []).map((t) => (
             <li key={t.id} className="py-2 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-medium truncate">{t.name}</div>
-                <div className="text-xs text-ink-500">
+                <div className="text-xs text-ink-500 dark:text-ink-400">
                   {t.kind.replace('_', ' ')}{t.is_default && ' - default'}
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
-                <button className="text-sm text-ink-600" onClick={() => setEditing(t)}>Edit</button>
+                <button className="text-sm text-ink-600 dark:text-ink-300" onClick={() => setEditing(t)}>Edit</button>
                 <button
                   className="text-sm text-red-600"
                   onClick={() => {
@@ -203,7 +203,7 @@ function TemplateEditor({
   return (
     <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-ink-900/40 px-3" onClick={onCancel}>
       <div
-        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-4 shadow-xl safe-bottom"
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-ink-900 p-4 shadow-xl safe-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="font-semibold mb-3">{template.id ? 'Edit template' : 'New template'}</h3>
@@ -328,14 +328,14 @@ function SettingsCard({ charity }: { charity: Record<string, unknown> }) {
         aria-controls={panelId}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="-m-2 flex w-[calc(100%+1rem)] items-center justify-between gap-2 rounded-lg p-2 text-left hover:bg-ink-50 focus:outline-none focus:ring-2 focus:ring-accent/40"
+        className="-m-2 flex w-[calc(100%+1rem)] items-center justify-between gap-2 rounded-lg p-2 text-left hover:bg-ink-50 dark:hover:bg-ink-900 focus:outline-none focus:ring-2 focus:ring-accent/40"
       >
         <h2 className="font-semibold truncate">
-          Settings - <span className="text-ink-600 font-normal">{charity.name as string}</span>
+          Settings - <span className="text-ink-600 dark:text-ink-300 font-normal">{charity.name as string}</span>
           {isDirty && <span className="ml-2 text-xs text-amber-600">unsaved</span>}
         </h2>
         <svg
-          className={`h-4 w-4 shrink-0 text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 shrink-0 text-ink-500 dark:text-ink-400 transition-transform ${open ? 'rotate-180' : ''}`}
           viewBox="0 0 20 20"
           fill="currentColor"
           aria-hidden="true"
@@ -458,23 +458,23 @@ function MembersSection({ charityId, canAdmin }: { charityId: string; canAdmin: 
     <section className="card space-y-3">
       <h2 className="font-semibold">Members</h2>
       {members.isLoading ? (
-        <div className="text-ink-400 text-sm">Loading...</div>
+        <div className="text-ink-400 dark:text-ink-500 text-sm">Loading...</div>
       ) : (members.data ?? []).length === 0 ? (
-        <p className="text-sm text-ink-500">No members yet.</p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">No members yet.</p>
       ) : (
-        <ul className="divide-y divide-ink-100">
+        <ul className="divide-y divide-ink-100 dark:divide-ink-800">
           {(members.data ?? []).map((m: MemberRow) => {
             const profile = m.profiles;
             return (
               <li key={m.user_id} className="py-3 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-medium truncate">{profile?.full_name ?? profile?.email ?? m.user_id}</div>
-                  <div className="text-xs text-ink-500 capitalize">{m.role}</div>
+                  <div className="text-xs text-ink-500 dark:text-ink-400 capitalize">{m.role}</div>
                 </div>
                 {canAdmin && (
                   <div className="flex items-center gap-2 shrink-0">
                     <select
-                      className="bg-ink-100 text-sm rounded-lg px-2 py-1"
+                      className="bg-ink-100 dark:bg-ink-800 text-sm rounded-lg px-2 py-1"
                       value={m.role}
                       onChange={(e) => changeRole.mutate({ userId: m.user_id, role: e.target.value as 'admin' | 'rep' })}
                     >
@@ -520,7 +520,7 @@ function InviteForm({ charityId }: { charityId: string }) {
   });
 
   return (
-    <div className="border-t border-ink-100 pt-4 mt-2">
+    <div className="border-t border-ink-100 dark:border-ink-800 pt-4 mt-2">
       <div className="text-sm font-semibold mb-2">Invite a new member</div>
       <div className="flex flex-col sm:flex-row gap-2">
         <input
@@ -543,7 +543,7 @@ function InviteForm({ charityId }: { charityId: string }) {
           {invite.isPending ? 'Inviting...' : 'Send invite'}
         </button>
       </div>
-      {message && <p className="text-sm text-ink-500 mt-2">{message}</p>}
+      {message && <p className="text-sm text-ink-500 dark:text-ink-400 mt-2">{message}</p>}
     </div>
   );
 }
@@ -578,12 +578,12 @@ function InvitationsSection({ charityId }: { charityId: string }) {
   return (
     <section className="card space-y-3">
       <h2 className="font-semibold">Pending invitations</h2>
-      <ul className="divide-y divide-ink-100">
+      <ul className="divide-y divide-ink-100 dark:divide-ink-800">
         {pending.map((inv) => (
           <li key={inv.id} className="py-2 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="font-medium truncate">{inv.email}</div>
-              <div className="text-xs text-ink-500 capitalize">
+              <div className="text-xs text-ink-500 dark:text-ink-400 capitalize">
                 {inv.role} - expires {new Date(inv.expires_at).toLocaleDateString()}
               </div>
             </div>

@@ -13,7 +13,7 @@ export function AdminPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-6">
         <h1 className="text-xl font-semibold">Admin</h1>
-        <p className="mt-2 text-ink-500 text-sm">You do not have admin access to any charity.</p>
+        <p className="mt-2 text-ink-500 dark:text-ink-400 text-sm">You do not have admin access to any charity.</p>
       </div>
     );
   }

@@ -5,7 +5,7 @@ import { edgeFunctions } from '@/lib/edgeFunctions';
 import { supabase } from '@/lib/supabase';
 import { renderTemplate, useTemplates } from '@/state/templates';
 import type { CustomerRow } from '@/state/customers';
-import { displayName } from '@/state/customers';
+import { displayName, primaryContact, sortedContacts } from '@/state/customers';
 
 export function EmailComposer({ customer, onClose }: { customer: CustomerRow; onClose: () => void }) {
   const templates = useTemplates(customer.charity_id);
@@ -15,6 +15,20 @@ export function EmailComposer({ customer, onClose }: { customer: CustomerRow; on
   const [body, setBody] = useState('');
   const [includeDonate, setIncludeDonate] = useState(false);
   const [donateAmountUsd, setDonateAmountUsd] = useState('');
+
+  // Build the recipient list once per customer: every contact that has an
+  // email. Default the picker to the primary so the previous behaviour
+  // (always-to-primary) is preserved.
+  const emailContacts = useMemo(
+    () => sortedContacts(customer).filter((c) => !!c.email?.trim()),
+    [customer],
+  );
+  const primary = primaryContact(customer);
+  const [contactId, setContactId] = useState<string>(() => {
+    if (primary?.email) return primary.id;
+    return emailContacts[0]?.id ?? '';
+  });
+  const chosen = emailContacts.find((c) => c.id === contactId) ?? primary ?? emailContacts[0] ?? null;
 
   const charity = useQuery({
     queryKey: ['charity-stripe', customer.charity_id],
@@ -30,15 +44,23 @@ export function EmailComposer({ customer, onClose }: { customer: CustomerRow; on
   });
   const stripeReady = charity.data?.stripe_charges_enabled === true;
 
+  // Resolve `{{customer.first_name|last_name|email|phone}}` against the
+  // chosen contact for back-compat with existing templates. Also expose
+  // `{{contact.*}}` so new templates can be explicit.
   const vars: Record<string, string> = useMemo(
     () => ({
-      'customer.first_name': customer.first_name ?? '',
-      'customer.last_name': customer.last_name ?? '',
+      'customer.first_name': chosen?.first_name ?? '',
+      'customer.last_name': chosen?.last_name ?? '',
       'customer.display_name': displayName(customer),
-      'customer.email': customer.email ?? '',
-      'customer.phone': customer.phone ?? '',
+      'customer.email': chosen?.email ?? '',
+      'customer.phone': chosen?.phone ?? '',
+      'contact.first_name': chosen?.first_name ?? '',
+      'contact.last_name': chosen?.last_name ?? '',
+      'contact.email': chosen?.email ?? '',
+      'contact.phone': chosen?.phone ?? '',
+      'contact.note': chosen?.note ?? '',
     }),
-    [customer],
+    [customer, chosen],
   );
 
   useEffect(() => {
@@ -68,6 +90,7 @@ export function EmailComposer({ customer, onClose }: { customer: CustomerRow; on
       return edgeFunctions.sendEmail({
         charity_id: customer.charity_id,
         customer_id: customer.id,
+        contact_id: chosen?.id,
         subject,
         body_html: bodyHtml,
         template_id: templateId ?? undefined,
@@ -105,7 +128,25 @@ export function EmailComposer({ customer, onClose }: { customer: CustomerRow; on
         )}
         <div>
           <label className="label">To</label>
-          <input className="field" value={customer.email ?? ''} disabled />
+          {emailContacts.length > 1 ? (
+            <select
+              className="field"
+              value={contactId}
+              onChange={(e) => setContactId(e.target.value)}
+            >
+              {emailContacts.map((c) => {
+                const name = `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim();
+                return (
+                  <option key={c.id} value={c.id}>
+                    {name ? `${name} <${c.email}>` : c.email}
+                    {c.is_primary ? ' (primary)' : ''}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
+            <input className="field" value={chosen?.email ?? ''} disabled />
+          )}
         </div>
         <div>
           <label className="label">Subject</label>
@@ -121,7 +162,7 @@ export function EmailComposer({ customer, onClose }: { customer: CustomerRow; on
           />
         </div>
         {stripeReady && (
-          <div className="border-t border-ink-100 pt-3 space-y-2">
+          <div className="border-t border-ink-100 dark:border-ink-800 pt-3 space-y-2">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -132,7 +173,7 @@ export function EmailComposer({ customer, onClose }: { customer: CustomerRow; on
             </label>
             {includeDonate && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-ink-500">Suggested amount (USD):</span>
+                <span className="text-sm text-ink-500 dark:text-ink-400">Suggested amount (USD):</span>
                 <input
                   type="number"
                   inputMode="decimal"
