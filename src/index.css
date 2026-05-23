@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply font-sans bg-ink-50 text-ink-900;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+  * {
+    -webkit-user-select: text;
+  }
+  input, textarea, button, select {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+  .safe-top {
+    padding-top: max(env(safe-area-inset-top), 0.5rem);
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-base font-medium transition-colors active:scale-[0.98];
+  }
+  .btn-primary {
+    @apply btn bg-accent text-white hover:bg-accent-hover disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply btn bg-ink-100 text-ink-800 hover:bg-ink-200 disabled:opacity-50;
+  }
+  .field {
+    @apply block w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-base shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;
+  }
+  .label {
+    @apply block text-sm font-medium text-ink-700 mb-1;
+  }
+  .card {
+    @apply rounded-2xl bg-white p-4 shadow-sm border border-ink-100;
+  }
+}

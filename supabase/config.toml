@@ -1,0 +1,66 @@
+# CharityTooling local Supabase config. Edit at your own risk.
+
+project_id = "charitytooling"
+
+[api]
+enabled = true
+port = 54321
+# `private` is intentionally not in the exposed schemas - it holds
+# SECURITY DEFINER helper functions that must not be callable via PostgREST.
+schemas = ["public", "graphql_public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173", "https://charitytooling.com"]
+jwt_expiry = 3600
+enable_signup = false
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = true
+double_confirm_changes = true
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+
+[functions.invite-user]
+verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.send-receipt]
+verify_jwt = true
+
+[functions.send-push]
+verify_jwt = true
+
+[functions.stripe-connect]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.cron-digest]
+# The platform verifies the JWT signature; our code additionally requires
+# the role claim to be `service_role`. pg_cron sends a service-role JWT
+# stored in Supabase Vault.
+verify_jwt = true
