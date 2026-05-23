@@ -297,6 +297,7 @@ const settingsSchema = z.object({
 
 function SettingsCard({ charity }: { charity: Record<string, unknown> }) {
   const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
   const { register, handleSubmit, formState: { isSubmitting, isDirty } } = useForm({
     defaultValues: charity as Record<string, string>,
   });
@@ -313,64 +314,96 @@ function SettingsCard({ charity }: { charity: Record<string, unknown> }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['charity', charity.id] }),
   });
 
+  const headerId = `settings-header-${charity.id as string}`;
+  const panelId = `settings-panel-${charity.id as string}`;
+
   return (
     <form
       className="card space-y-4"
       onSubmit={handleSubmit((v) => update.mutateAsync(v))}
     >
-      <h2 className="font-semibold">Settings</h2>
-      <div>
-        <label className="label">Name</label>
-        <input className="field" {...register('name')} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">EIN</label>
-          <input className="field" {...register('ein')} />
-        </div>
-        <div>
-          <label className="label">Time zone</label>
-          <input className="field" {...register('default_tz')} />
-        </div>
-      </div>
-      <div>
-        <label className="label">Address</label>
-        <input className="field" {...register('address_line1')} />
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="label">City</label>
-          <input className="field" {...register('city')} />
-        </div>
-        <div>
-          <label className="label">State</label>
-          <input className="field" {...register('state')} />
-        </div>
-        <div>
-          <label className="label">ZIP</label>
-          <input className="field" {...register('postal_code')} />
-        </div>
-      </div>
-      <div>
-        <label className="label">Resend from email</label>
-        <input className="field" type="email" {...register('resend_from_email')} />
-      </div>
-      <div>
-        <label className="label">Resend from name</label>
-        <input className="field" {...register('resend_from_name')} />
-      </div>
-      <div>
-        <label className="label">Receipt signatory</label>
-        <input className="field" {...register('receipt_signatory_name')} />
-      </div>
-      <div>
-        <label className="label">Receipt disclaimer</label>
-        <textarea className="field" rows={3} {...register('receipt_disclaimer')} />
-      </div>
-      {update.error && <p className="text-red-600 text-sm">{(update.error as Error).message}</p>}
-      <button type="submit" className="btn-primary w-full" disabled={!isDirty || isSubmitting}>
-        {isSubmitting ? 'Saving...' : 'Save'}
+      <button
+        type="button"
+        id={headerId}
+        aria-controls={panelId}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="-m-2 flex w-[calc(100%+1rem)] items-center justify-between gap-2 rounded-lg p-2 text-left hover:bg-ink-50 focus:outline-none focus:ring-2 focus:ring-accent/40"
+      >
+        <h2 className="font-semibold truncate">
+          Settings - <span className="text-ink-600 font-normal">{charity.name as string}</span>
+          {isDirty && <span className="ml-2 text-xs text-amber-600">unsaved</span>}
+        </h2>
+        <svg
+          className={`h-4 w-4 shrink-0 text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+            clipRule="evenodd"
+          />
+        </svg>
       </button>
+
+      {open && (
+        <div id={panelId} role="region" aria-labelledby={headerId} className="space-y-4">
+          <div>
+            <label className="label">Name</label>
+            <input className="field" {...register('name')} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">EIN</label>
+              <input className="field" {...register('ein')} />
+            </div>
+            <div>
+              <label className="label">Time zone</label>
+              <input className="field" {...register('default_tz')} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Address</label>
+            <input className="field" {...register('address_line1')} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="label">City</label>
+              <input className="field" {...register('city')} />
+            </div>
+            <div>
+              <label className="label">State</label>
+              <input className="field" {...register('state')} />
+            </div>
+            <div>
+              <label className="label">ZIP</label>
+              <input className="field" {...register('postal_code')} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Resend from email</label>
+            <input className="field" type="email" {...register('resend_from_email')} />
+          </div>
+          <div>
+            <label className="label">Resend from name</label>
+            <input className="field" {...register('resend_from_name')} />
+          </div>
+          <div>
+            <label className="label">Receipt signatory</label>
+            <input className="field" {...register('receipt_signatory_name')} />
+          </div>
+          <div>
+            <label className="label">Receipt disclaimer</label>
+            <textarea className="field" rows={3} {...register('receipt_disclaimer')} />
+          </div>
+          {update.error && <p className="text-red-600 text-sm">{(update.error as Error).message}</p>}
+          <button type="submit" className="btn-primary w-full" disabled={!isDirty || isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

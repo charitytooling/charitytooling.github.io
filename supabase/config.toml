@@ -26,8 +26,15 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173", "https://charitytooling.com"]
+# Site URL is the canonical production URL. emailRedirectTo overrides it as
+# long as the requested URL matches additional_redirect_urls.
+site_url = "https://charitytooling.com"
+# Wildcards required because Supabase appends `?code=...` (PKCE flow) to the
+# redirect URL. Exact-match entries would be rejected after that append.
+additional_redirect_urls = [
+  "https://charitytooling.com/**",
+  "http://localhost:5173/**",
+]
 jwt_expiry = 3600
 enable_signup = false
 enable_anonymous_sign_ins = false

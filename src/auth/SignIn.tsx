@@ -22,13 +22,21 @@ export function SignIn() {
     setError(null);
     setSubmitting(true);
     try {
+      // Preserve any deep-link redirect through the magic-link round trip by
+      // tacking it onto the hash route. Supabase appends `?code=...` to the
+      // base URL (PKCE flow); supabase-js exchanges + strips the code on load
+      // while leaving the hash intact, so this component re-renders with a
+      // valid session AND the original `redirect` query in the URL.
+      const redirect = params.get('redirect');
+      const target = new URL(window.location.origin);
+      if (redirect) {
+        target.hash = `#/sign-in?redirect=${redirect}`;
+      }
       const { error: err } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          // Sign-up is disabled in the Supabase dashboard; users only get in
-          // via the `invite-user` Edge Function which creates them server-side.
           shouldCreateUser: false,
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: target.toString(),
         },
       });
       if (err) throw err;
