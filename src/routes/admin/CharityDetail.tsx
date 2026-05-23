@@ -410,10 +410,11 @@ function SettingsCard({ charity }: { charity: Record<string, unknown> }) {
 
 interface MemberRow {
   user_id: string;
+  email: string | null;
+  full_name: string | null;
   role: 'admin' | 'rep';
   invited_at: string | null;
   accepted_at: string | null;
-  profiles: { email: string | null; full_name: string | null } | null;
 }
 
 function MembersSection({ charityId, canAdmin }: { charityId: string; canAdmin: boolean }) {
@@ -421,12 +422,9 @@ function MembersSection({ charityId, canAdmin }: { charityId: string; canAdmin: 
   const members = useQuery({
     queryKey: ['members', charityId],
     queryFn: async (): Promise<MemberRow[]> => {
-      const { data, error } = await supabase
-        .from('charity_members')
-        .select(`user_id, role, invited_at, accepted_at, profiles:user_id(email, full_name)`)
-        .eq('charity_id', charityId);
+      const { data, error } = await supabase.rpc('list_charity_members', { c_id: charityId });
       if (error) throw error;
-      return (data ?? []) as unknown as MemberRow[];
+      return ((data ?? []) as MemberRow[]).filter((m) => m.accepted_at !== null);
     },
   });
 
@@ -457,6 +455,9 @@ function MembersSection({ charityId, canAdmin }: { charityId: string; canAdmin: 
   return (
     <section className="card space-y-3">
       <h2 className="font-semibold">Members</h2>
+      {members.error && (
+        <p className="text-sm text-red-600">{(members.error as Error).message}</p>
+      )}
       {members.isLoading ? (
         <div className="text-ink-400 dark:text-ink-500 text-sm">Loading...</div>
       ) : (members.data ?? []).length === 0 ? (
@@ -464,11 +465,10 @@ function MembersSection({ charityId, canAdmin }: { charityId: string; canAdmin: 
       ) : (
         <ul className="divide-y divide-ink-100 dark:divide-ink-800">
           {(members.data ?? []).map((m: MemberRow) => {
-            const profile = m.profiles;
             return (
               <li key={m.user_id} className="py-3 flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-medium truncate">{profile?.full_name ?? profile?.email ?? m.user_id}</div>
+                  <div className="font-medium truncate">{m.full_name ?? m.email ?? m.user_id}</div>
                   <div className="text-xs text-ink-500 dark:text-ink-400 capitalize">{m.role}</div>
                 </div>
                 {canAdmin && (
