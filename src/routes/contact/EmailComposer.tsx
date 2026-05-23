@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../ledger/AddCustomerModal';
 import { edgeFunctions } from '@/lib/edgeFunctions';
 import { supabase } from '@/lib/supabase';
@@ -49,6 +49,7 @@ export function EmailComposer({ customer, onClose }: { customer: CustomerRow; on
     setBody(renderTemplate(t.body_md, vars));
   }, [templateId, usable, vars]);
 
+  const qc = useQueryClient();
   const send = useMutation({
     mutationFn: async () => {
       let finalBody = body;
@@ -72,7 +73,16 @@ export function EmailComposer({ customer, onClose }: { customer: CustomerRow; on
         template_id: templateId ?? undefined,
       });
     },
-    onSuccess: onClose,
+    onSuccess: () => {
+      // The send-email Edge Function inserts a notes row and bumps
+      // last_contacted_at server-side. Refresh those caches so the History
+      // panel and Ledger reflect the change immediately.
+      qc.invalidateQueries({ queryKey: ['notes', customer.id] });
+      qc.invalidateQueries({ queryKey: ['customer', customer.id] });
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['customer_ids_with_open_followups'] });
+      onClose();
+    },
   });
 
   return (

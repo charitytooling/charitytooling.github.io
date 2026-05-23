@@ -36,10 +36,14 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-base font-medium transition-colors active:scale-[0.98];
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:bg-accent-hover disabled:opacity-50;
+    @apply btn bg-accent text-white hover:bg-accent-hover
+           disabled:bg-ink-200 disabled:text-ink-500 disabled:cursor-not-allowed disabled:hover:bg-ink-200
+           aria-disabled:bg-ink-200 aria-disabled:text-ink-500 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-ink-200;
   }
   .btn-ghost {
-    @apply btn bg-ink-100 text-ink-800 hover:bg-ink-200 disabled:opacity-50;
+    @apply btn bg-ink-100 text-ink-800 hover:bg-ink-200
+           disabled:bg-ink-100 disabled:text-ink-400 disabled:cursor-not-allowed disabled:hover:bg-ink-100
+           aria-disabled:bg-ink-100 aria-disabled:text-ink-400 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-ink-100;
   }
   .field {
     @apply block w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-base shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;

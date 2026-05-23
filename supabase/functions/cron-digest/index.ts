@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       totalSent += await fanOutToCharity(service, c.id, 'followups_due', {
         title: `${followupCount} follow-up${followupCount === 1 ? '' : 's'} due today`,
         body: `${c.name}: tap to start your day.`,
-        url: '/#/update',
+        url: '/#/calendar',
       });
     }
 

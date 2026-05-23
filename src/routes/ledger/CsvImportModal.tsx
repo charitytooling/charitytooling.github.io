@@ -25,6 +25,18 @@ const ALIASES: Record<CanonicalField, string[]> = {
   website: ['website', 'site', 'url', 'web'],
 };
 
+// UTF-8 BOM so Excel on Windows opens it as UTF-8; CRLF for Excel-friendly line
+// endings. Canonical headers ensure detectMapping() auto-fills every column
+// when the user re-uploads this file after editing.
+const SAMPLE_CSV =
+  '\ufeff' +
+  [
+    'display_name,first_name,last_name,email,phone,website',
+    'Jane Doe,Jane,Doe,jane@example.org,555-123-4567,janesfoundation.org',
+    ',Carlos,Mendez,carlos@example.com,(212) 555-0199,',
+    'Hopeful Hearts Foundation,,,info@hopefulhearts.example,,hopefulhearts.example',
+  ].join('\r\n') + '\r\n';
+
 function detectMapping(headers: string[]): Record<CanonicalField, string | null> {
   const normalized = headers.map((h) => h.trim().toLowerCase());
   const mapping = {} as Record<CanonicalField, string | null>;
@@ -147,6 +159,13 @@ export function CsvImportModal({ charityId, onClose }: { charityId: string; onCl
             <p className="text-sm text-ink-500">
               Upload a CSV with at least one of: name, email, phone, website.
             </p>
+            <button
+              type="button"
+              className="btn-ghost w-full"
+              onClick={downloadSampleCsv}
+            >
+              Download sample
+            </button>
             <input
               type="file"
               accept=".csv,text/csv"
@@ -238,4 +257,17 @@ function mapRow(row: Record<string, string>, mapping: Record<CanonicalField, str
     phone: get('phone'),
     website: get('website'),
   };
+}
+
+function downloadSampleCsv() {
+  const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'charitytooling-customer-import-sample.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Defer revoke; Safari sometimes cancels the download if we revoke too soon.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

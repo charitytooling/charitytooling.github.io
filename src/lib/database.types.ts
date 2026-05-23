@@ -14,6 +14,12 @@ export interface Database {
           full_name: string | null;
           avatar_url: string | null;
           is_super_admin: boolean;
+          contact_queue_sort:
+            | 'stalest_first'
+            | 'followup_due_soonest'
+            | 'name_az'
+            | 'newest_added'
+            | 'random';
           created_at: string;
         };
         Insert: Partial<Database['public']['Tables']['profiles']['Row']> & { id: string };

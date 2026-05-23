@@ -7,6 +7,7 @@ export function SignIn() {
   const { session, loading } = useAuth();
   const [params] = useSearchParams();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,8 +18,7 @@ export function SignIn() {
     return <Navigate to={redirect ? decodeURIComponent(redirect) : '/ledger'} replace />;
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function sendMagicLink() {
     setError(null);
     setSubmitting(true);
     try {
@@ -43,6 +43,22 @@ export function SignIn() {
       setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function signInWithPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      if (err) throw err;
+      // AuthProvider's onAuthStateChange will fire; the `if (session)` guard
+      // above then Navigates to /ledger or the `?redirect=` target.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-in failed.');
     } finally {
       setSubmitting(false);
     }
@@ -75,7 +91,7 @@ export function SignIn() {
             </button>
           </div>
         ) : (
-          <form className="card space-y-4" onSubmit={onSubmit}>
+          <form className="card space-y-4" onSubmit={signInWithPassword}>
             <div>
               <label className="label" htmlFor="email">
                 Email
@@ -92,6 +108,45 @@ export function SignIn() {
                 placeholder="you@example.org"
               />
             </div>
+
+            <button
+              type="button"
+              className="btn-primary w-full"
+              onClick={sendMagicLink}
+              disabled={submitting || !email}
+            >
+              {submitting ? 'Sending...' : 'Send magic link'}
+            </button>
+
+            <div className="relative my-2">
+              <div className="absolute inset-x-0 top-1/2 h-px bg-ink-100" />
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 text-xs text-ink-500 uppercase">or</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="password">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                className="field"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={submitting || !email || !password}
+            >
+              {submitting ? 'Signing in...' : 'Sign in'}
+            </button>
+
             {error && (
               <p className="text-sm text-red-600">
                 {error}
@@ -101,9 +156,6 @@ export function SignIn() {
                 </span>
               </p>
             )}
-            <button type="submit" className="btn-primary w-full" disabled={submitting || !email}>
-              {submitting ? 'Sending...' : 'Send magic link'}
-            </button>
           </form>
         )}
       </div>

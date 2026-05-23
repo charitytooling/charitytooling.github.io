@@ -11,6 +11,7 @@ import {
   pushSupported,
   saveSubscription,
 } from '@/lib/push';
+import { useProfile, useUpdateContactSort, type ContactQueueSort } from '@/state/profile';
 
 type Prefs = {
   followups_due: boolean;
@@ -110,6 +111,23 @@ export function SettingsPage() {
       </section>
 
       <section className="card space-y-3">
+        <h2 className="font-semibold">Password</h2>
+        <p className="text-xs text-ink-500">
+          Optional. Set a password to sign in without waiting for a magic-link email.
+          You can keep using magic links either way.
+        </p>
+        <PasswordForm />
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Contact queue order</h2>
+        <p className="text-xs text-ink-500">
+          Controls Previous/Next on the Contact page, and which customer opens when you tap "Contact" in the nav.
+        </p>
+        <ContactSortPicker />
+      </section>
+
+      <section className="card space-y-3">
         <h2 className="font-semibold">Notifications</h2>
         {!pushSupported() ? (
           <p className="text-sm text-ink-500">
@@ -205,5 +223,133 @@ function ToggleRow({
         onChange={(e) => onChange(e.target.checked)}
       />
     </label>
+  );
+}
+
+const CONTACT_SORT_OPTIONS: { value: ContactQueueSort; label: string; description: string }[] = [
+  {
+    value: 'stalest_first',
+    label: 'Last contacted - oldest first',
+    description: 'Rotate through customers you haven\'t spoken to in a while.',
+  },
+  {
+    value: 'followup_due_soonest',
+    label: 'Open follow-up due - soonest',
+    description: 'Work through customers with the most urgent follow-ups first.',
+  },
+  {
+    value: 'name_az',
+    label: 'Name A-Z',
+    description: 'Alphabetical by display name.',
+  },
+  {
+    value: 'newest_added',
+    label: 'Date added - newest',
+    description: 'Start with the most recently added customers.',
+  },
+  {
+    value: 'random',
+    label: 'Random',
+    description: 'Shuffled at each page load to mix things up.',
+  },
+];
+
+function ContactSortPicker() {
+  const profile = useProfile();
+  const update = useUpdateContactSort();
+  const current: ContactQueueSort = profile.data?.contact_queue_sort ?? 'stalest_first';
+
+  return (
+    <div className="space-y-2">
+      {CONTACT_SORT_OPTIONS.map((opt) => (
+        <label
+          key={opt.value}
+          className="flex items-start gap-3 rounded-lg border border-ink-100 p-3 cursor-pointer hover:bg-ink-50"
+        >
+          <input
+            type="radio"
+            name="contact_queue_sort"
+            className="mt-1 h-4 w-4"
+            checked={current === opt.value}
+            onChange={() => update.mutate(opt.value)}
+            disabled={!profile.isSuccess || update.isPending}
+          />
+          <div>
+            <div className="text-sm font-medium">{opt.label}</div>
+            <div className="text-xs text-ink-500">{opt.description}</div>
+          </div>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function PasswordForm() {
+  const [pwd, setPwd] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (pwd.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (pwd !== confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setStatus('saving');
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password: pwd });
+      if (err) throw err;
+      setStatus('saved');
+      setPwd('');
+      setConfirm('');
+      setTimeout(() => setStatus('idle'), 2000);
+    } catch (err) {
+      setStatus('idle');
+      setError(err instanceof Error ? err.message : 'Could not update password.');
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-3">
+      <div>
+        <label className="label" htmlFor="new-password">New password</label>
+        <input
+          id="new-password"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          className="field"
+          value={pwd}
+          onChange={(e) => setPwd(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="label" htmlFor="confirm-password">Confirm password</label>
+        <input
+          id="confirm-password"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          className="field"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+        />
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {status === 'saved' && <p className="text-sm text-green-700">Password updated.</p>}
+      <button
+        type="submit"
+        className="btn-primary w-full"
+        disabled={status === 'saving' || !pwd || !confirm}
+      >
+        {status === 'saving' ? 'Saving...' : 'Set password'}
+      </button>
+    </form>
   );
 }
