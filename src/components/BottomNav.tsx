@@ -1,39 +1,67 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthProvider';
 import { useIsAnyCharityAdmin } from '@/state/profile';
+import { useStickyCustomer } from '@/state/stickyCustomer';
 
-const baseItems = [
-  { to: '/update', label: 'Update', icon: UpdateIcon },
-  { to: '/contact', label: 'Contact', icon: ContactIcon },
-  { to: '/ledger', label: 'Ledger', icon: LedgerIcon },
-];
+type IconComponent = (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
+
+interface NavItem {
+  to: string;
+  prefix: string;
+  label: string;
+  icon: IconComponent;
+}
 
 export function BottomNav() {
   const { session } = useAuth();
   const showAdmin = useIsAnyCharityAdmin();
+  const sticky = useStickyCustomer();
+  const { pathname } = useLocation();
   if (!session) return null;
 
-  const items = showAdmin ? [...baseItems, { to: '/admin', label: 'Admin', icon: AdminIcon }] : baseItems;
+  const items: NavItem[] = [
+    {
+      to: sticky ? `/update?id=${sticky}` : '/update',
+      prefix: '/update',
+      label: 'Update',
+      icon: UpdateIcon,
+    },
+    {
+      to: sticky ? `/contact/${sticky}` : '/contact',
+      prefix: '/contact',
+      label: 'Contact',
+      icon: ContactIcon,
+    },
+    { to: '/ledger', prefix: '/ledger', label: 'Ledger', icon: LedgerIcon },
+  ];
+  if (showAdmin) {
+    items.push({ to: '/admin', prefix: '/admin', label: 'Admin', icon: AdminIcon });
+  }
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 bg-white dark:bg-ink-900 border-t border-ink-100 dark:border-ink-800 shadow-nav safe-bottom">
       <ul className="mx-auto max-w-3xl flex">
-        {items.map(({ to, label, icon: Icon }) => (
-          <li key={to} className="flex-1">
-            <NavLink
-              to={to}
-              className={({ isActive }) =>
-                [
+        {items.map(({ to, prefix, label, icon: Icon }) => {
+          // Use a pathname-prefix match so the Update/Contact tabs stay
+          // highlighted even when their `to` carries a specific customer id
+          // different from the one currently in the URL.
+          const active = pathname === prefix || pathname.startsWith(`${prefix}/`);
+          return (
+            <li key={prefix} className="flex-1">
+              <NavLink
+                to={to}
+                end={false}
+                className={[
                   'flex flex-col items-center justify-center gap-1 py-2 text-xs font-medium',
-                  isActive ? 'text-accent' : 'text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100',
-                ].join(' ')
-              }
-            >
-              <Icon className="h-6 w-6" />
-              <span>{label}</span>
-            </NavLink>
-          </li>
-        ))}
+                  active ? 'text-accent' : 'text-ink-500 dark:text-ink-400 hover:text-ink-800 dark:hover:text-ink-100',
+                ].join(' ')}
+              >
+                <Icon className="h-6 w-6" />
+                <span>{label}</span>
+              </NavLink>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

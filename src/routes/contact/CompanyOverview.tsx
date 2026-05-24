@@ -1,24 +1,20 @@
 import { useDonations } from '@/state/donations';
 import { useMyCharities } from '@/state/charities';
 import type { CustomerRow } from '@/state/customers';
+import { compactMoney } from '@/lib/format';
 
-const MONEY_COMPACT = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  notation: 'compact',
-  compactDisplay: 'short',
-  maximumFractionDigits: 1,
-});
-
-function compactMoney(value: number): string {
-  return MONEY_COMPACT.format(value).replace(/[KMBT]$/, (s) => s.toLowerCase());
+// Render the IRS tax period (stored as YYYYMM, e.g. "202412") as a phrase that
+// reads naturally on the customer overview, e.g. "990 for 2024". Falls back to
+// the raw value if it does not start with four digits.
+function formatTaxPeriod(raw: string): string {
+  const match = raw.match(/^(\d{4})/);
+  if (!match) return raw;
+  return `990 for ${match[1]}`;
 }
 
 export function CompanyOverview({ customer }: { customer: CustomerRow }) {
   const donations = useDonations(customer.id);
   const charities = useMyCharities();
-
-  const score = Math.max(0, Math.min(100, customer.completeness_score ?? 0));
 
   const addressLines = formatAddressLines(customer);
   const hasAddress = addressLines.length > 0;
@@ -32,16 +28,34 @@ export function CompanyOverview({ customer }: { customer: CustomerRow }) {
   const tags = customer.tags ?? [];
   const preferred = labelPreferred(customer.preferred_contact_method);
 
+  const hasAnyFiling =
+    !!customer.ein ||
+    customer.filing_revenue != null ||
+    customer.filing_income != null ||
+    customer.filing_assets != null ||
+    !!customer.filing_tax_period;
+
   return (
     <div className="border-t border-ink-100 dark:border-ink-800 mt-3 pt-3 space-y-3">
-      <div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-medium text-ink-500 dark:text-ink-400">{score}% complete</span>
+      {hasAnyFiling && (
+        <div className="text-center">
+          {customer.ein && (
+            <div className="text-xs text-ink-400 dark:text-ink-500 tabular-nums">
+              EIN {customer.ein}
+            </div>
+          )}
+          <div className="text-xs text-ink-500 dark:text-ink-400">
+            {customer.filing_tax_period
+              ? `From the ${formatTaxPeriod(customer.filing_tax_period)}:`
+              : 'From the latest filing:'}
+          </div>
+          <div className="mt-1 grid grid-cols-3 gap-3">
+            <FilingCell label="Revenue" value={customer.filing_revenue} />
+            <FilingCell label="Income" value={customer.filing_income} />
+            <FilingCell label="Assets" value={customer.filing_assets} />
+          </div>
         </div>
-        <div className="mt-1 h-1.5 bg-ink-100 dark:bg-ink-800 rounded-full overflow-hidden">
-          <div className="h-full bg-accent" style={{ width: `${score}%` }} />
-        </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
         {hasAddress && (
@@ -60,22 +74,6 @@ export function CompanyOverview({ customer }: { customer: CustomerRow }) {
             )}
           </Field>
         )}
-        {customer.ein && <Field label="EIN">{customer.ein}</Field>}
-
-        {customer.filing_revenue != null && (
-          <Field label="Last revenue">{compactMoney(customer.filing_revenue)}</Field>
-        )}
-        {customer.filing_tax_period && (
-          <Field label="Tax period">{customer.filing_tax_period}</Field>
-        )}
-
-        {customer.filing_income != null && (
-          <Field label="Last income">{compactMoney(customer.filing_income)}</Field>
-        )}
-        {customer.filing_assets != null && (
-          <Field label="Last assets">{compactMoney(customer.filing_assets)}</Field>
-        )}
-
         <Field label={givingLabel}>{givingValue}</Field>
         {preferred && <Field label="Preferred contact">{preferred}</Field>}
       </div>
@@ -104,6 +102,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="min-w-0">
       <div className="text-xs text-ink-500 dark:text-ink-400">{label}</div>
       <div className="text-sm text-ink-700 dark:text-ink-200 break-words">{children}</div>
+    </div>
+  );
+}
+
+function FilingCell({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-sm text-ink-700 dark:text-ink-200 tabular-nums">
+        {value == null ? '-' : compactMoney(value)}
+      </div>
+      <div className="text-xs text-ink-500 dark:text-ink-400">{label}</div>
     </div>
   );
 }

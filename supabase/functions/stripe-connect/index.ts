@@ -1,6 +1,6 @@
 // stripe-connect
 //
-// Three operations multiplexed by `?action=`:
+// Five operations multiplexed by `?action=`:
 //
 //   POST ?action=start         -> { charity_id }
 //      Returns the Stripe Connect OAuth URL to redirect the admin to.
@@ -13,6 +13,16 @@
 //      Creates a Stripe Checkout Session on the charity's connected account
 //      and returns the hosted URL. If `amount_cents` is omitted, the donor
 //      picks the amount on Stripe's page (uses `custom_unit_amount`).
+//
+//   POST ?action=invoice       -> { charity_id, customer_id, amount_cents, currency?, description? }
+//      Creates a Stripe Invoice on the connected account, finalizes it, and
+//      returns the hosted invoice URL. The rep can paste / forward the link
+//      separately, or `?send=1` to have Stripe email the donor directly.
+//
+//   POST ?action=subscription_checkout
+//      -> { charity_id, customer_id, amount_cents, currency?, interval? }
+//      Returns a Stripe Checkout URL configured for a recurring subscription
+//      at the chosen interval (defaults to monthly).
 
 import Stripe from 'npm:stripe@16.12.0';
 import { handleOptions, json } from '../_shared/cors.ts';
@@ -45,6 +55,9 @@ Deno.serve(async (req) => {
       customer_id?: string;
       amount_cents?: number;
       currency?: string;
+      description?: string;
+      interval?: 'month' | 'year' | 'week';
+      send?: boolean;
     };
     if (!body.charity_id) return json({ error: 'missing-charity-id' }, { status: 400 }, origin);
 
@@ -135,6 +148,154 @@ Deno.serve(async (req) => {
           metadata: {
             charity_id: body.charity_id,
             customer_id: body.customer_id,
+          },
+        },
+        { stripeAccount: charity.stripe_account_id },
+      );
+
+      return json({ url: session.url }, {}, origin);
+    }
+
+    if (action === 'invoice') {
+      await requireCharityMember(supabase, body.charity_id);
+      if (!body.customer_id) return json({ error: 'missing-customer-id' }, { status: 400 }, origin);
+      if (!body.amount_cents || body.amount_cents <= 0) {
+        return json({ error: 'missing-amount' }, { status: 400 }, origin);
+      }
+
+      const { data: charity } = await supabase
+        .from('charities')
+        .select('id, name, stripe_account_id, stripe_charges_enabled')
+        .eq('id', body.charity_id)
+        .maybeSingle();
+      if (!charity) return json({ error: 'charity-not-found' }, { status: 404 }, origin);
+      if (!charity.stripe_account_id || !charity.stripe_charges_enabled) {
+        return json({ error: 'stripe-not-connected' }, { status: 400 }, origin);
+      }
+
+      const { data: contact } = await supabase
+        .from('customer_contacts')
+        .select('email, first_name, last_name')
+        .eq('customer_id', body.customer_id)
+        .eq('is_primary', true)
+        .maybeSingle();
+      if (!contact?.email) {
+        return json({ error: 'customer-missing-email' }, { status: 400 }, origin);
+      }
+      const donorName = `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() || undefined;
+      const currency = (body.currency ?? 'usd').toLowerCase();
+      const stripeAccount = { stripeAccount: charity.stripe_account_id };
+
+      // Create (or fetch) a Stripe Customer on the connected account so the
+      // invoice has a recipient. Per-invoice creation is fine for v1; if
+      // donor de-dup becomes important we can stash the returned id on a
+      // dedicated mapping table later.
+      const stripeCustomer = await stripe.customers.create(
+        {
+          email: contact.email,
+          name: donorName,
+          metadata: {
+            charity_id: body.charity_id,
+            customer_id: body.customer_id,
+          },
+        },
+        stripeAccount,
+      );
+
+      const invoice = await stripe.invoices.create(
+        {
+          customer: stripeCustomer.id,
+          collection_method: 'send_invoice',
+          days_until_due: 30,
+          description: body.description ?? `Donation to ${charity.name}`,
+          metadata: {
+            charity_id: body.charity_id,
+            customer_id: body.customer_id,
+          },
+        },
+        stripeAccount,
+      );
+
+      await stripe.invoiceItems.create(
+        {
+          customer: stripeCustomer.id,
+          invoice: invoice.id,
+          amount: body.amount_cents,
+          currency,
+          description: body.description ?? `Donation to ${charity.name}`,
+        },
+        stripeAccount,
+      );
+
+      const finalized = await stripe.invoices.finalizeInvoice(invoice.id, {}, stripeAccount);
+      let hostedUrl = finalized.hosted_invoice_url ?? null;
+
+      if (body.send) {
+        const sent = await stripe.invoices.sendInvoice(finalized.id, {}, stripeAccount);
+        hostedUrl = sent.hosted_invoice_url ?? hostedUrl;
+      }
+
+      return json(
+        {
+          ok: true,
+          url: hostedUrl,
+          invoice_id: finalized.id,
+          stripe_customer_id: stripeCustomer.id,
+        },
+        {},
+        origin,
+      );
+    }
+
+    if (action === 'subscription_checkout') {
+      await requireCharityMember(supabase, body.charity_id);
+      if (!body.customer_id) return json({ error: 'missing-customer-id' }, { status: 400 }, origin);
+      if (!body.amount_cents || body.amount_cents <= 0) {
+        return json({ error: 'missing-amount' }, { status: 400 }, origin);
+      }
+
+      const { data: charity } = await supabase
+        .from('charities')
+        .select('id, name, stripe_account_id, stripe_charges_enabled')
+        .eq('id', body.charity_id)
+        .maybeSingle();
+      if (!charity) return json({ error: 'charity-not-found' }, { status: 404 }, origin);
+      if (!charity.stripe_account_id || !charity.stripe_charges_enabled) {
+        return json({ error: 'stripe-not-connected' }, { status: 400 }, origin);
+      }
+
+      const successUrl = `${origin ?? 'https://charitytooling.com'}/#/contact/${body.customer_id}?donation=success`;
+      const cancelUrl = `${origin ?? 'https://charitytooling.com'}/#/contact/${body.customer_id}?donation=cancel`;
+      const currency = (body.currency ?? 'usd').toLowerCase();
+      const interval = body.interval ?? 'month';
+
+      const session = await stripe.checkout.sessions.create(
+        {
+          mode: 'subscription',
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              quantity: 1,
+              price_data: {
+                currency,
+                unit_amount: body.amount_cents,
+                recurring: { interval },
+                product_data: { name: `Recurring donation to ${charity.name}` },
+              },
+            },
+          ],
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            charity_id: body.charity_id,
+            customer_id: body.customer_id,
+            recurring: 'true',
+          },
+          subscription_data: {
+            metadata: {
+              charity_id: body.charity_id,
+              customer_id: body.customer_id,
+            },
           },
         },
         { stripeAccount: charity.stripe_account_id },

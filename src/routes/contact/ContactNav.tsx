@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import { displayName } from '@/state/customers';
 import { useContactQueue } from '@/state/queue';
+import { VisitStopwatch } from '@/components/VisitStopwatch';
 
 export function ContactNav({
   currentId,
@@ -22,62 +22,40 @@ export function ContactNav({
       : null
     : queue[0].id;
 
-  const prevLabel = prevId ? displayName(queue[idx - 1]) : null;
-  const nextLabel = nextId
-    ? displayName(inQueue ? queue[idx + 1] : queue[0])
-    : null;
-
   return (
-    <nav
-      className="card flex items-center justify-between gap-2"
-      aria-label="Contact navigation"
-    >
-      <NavButton dir="prev" to={prevId} label={prevLabel} />
-      <div className="text-xs text-ink-500 dark:text-ink-400 text-center min-w-[5rem]">
-        {inQueue ? `${idx + 1} of ${queue.length}` : `${queue.length} to do`}
+    <nav className="card" aria-label="Contact navigation">
+      <div className="flex justify-center mb-2">
+        <VisitStopwatch />
       </div>
-      <NavButton dir="next" to={nextId} label={nextLabel} />
+      <div className="flex items-center justify-between gap-2">
+        <NavButton dir="prev" to={prevId} />
+        <div className="text-xs text-ink-500 dark:text-ink-400 text-center min-w-[5rem]">
+          {inQueue ? `${idx + 1} of ${queue.length}` : `${queue.length} to do`}
+        </div>
+        <NavButton dir="next" to={nextId} />
+      </div>
     </nav>
   );
 }
 
-function NavButton({
-  dir,
-  to,
-  label,
-}: {
-  dir: 'prev' | 'next';
-  to: string | null;
-  label: string | null;
-}) {
-  const inner = (
-    <span className="flex items-center gap-2">
-      {dir === 'prev' && <ArrowLeftIcon className="h-4 w-4 shrink-0" />}
-      <span className="flex flex-col items-start min-w-0">
-        <span className="text-xs leading-none text-ink-500 dark:text-ink-400">
-          {dir === 'prev' ? 'Previous' : 'Next'}
-        </span>
-        <span className="text-sm font-medium truncate max-w-[8rem]">
-          {label ?? '—'}
-        </span>
-      </span>
-      {dir === 'next' && <ArrowRightIcon className="h-4 w-4 shrink-0" />}
-    </span>
-  );
+function NavButton({ dir, to }: { dir: 'prev' | 'next'; to: string | null }) {
+  const label = dir === 'prev' ? 'Previous customer' : 'Next customer';
+  const Icon = dir === 'prev' ? ArrowLeftIcon : ArrowRightIcon;
 
   if (!to) {
     return (
       <span
-        className="btn-ghost opacity-40 cursor-not-allowed select-none"
+        className="btn-ghost opacity-40 cursor-not-allowed select-none px-3"
+        aria-label={label}
         aria-disabled="true"
       >
-        {inner}
+        <Icon className="h-5 w-5" />
       </span>
     );
   }
   return (
-    <Link to={`/contact/${to}`} className="btn-ghost">
-      {inner}
+    <Link to={`/contact/${to}`} className="btn-ghost px-3" aria-label={label}>
+      <Icon className="h-5 w-5" />
     </Link>
   );
 }

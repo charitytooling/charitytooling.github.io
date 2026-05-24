@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   displayName,
   primaryContact,
   sortedContacts,
-  useArchiveCustomer,
   useCustomer,
   useDeleteCustomer,
   useRestoreCustomer,
@@ -19,6 +18,7 @@ import {
 import { useIsSuperAdmin, useProfile } from '@/state/profile';
 import { useContactQueue } from '@/state/queue';
 import { useActiveCharity } from '@/state/activeCharity';
+import { useSetStickyCustomer, useStickyCustomer } from '@/state/stickyCustomer';
 import { NoteForm } from './contact/NoteForm';
 import { NoteList } from './contact/NoteList';
 import { FollowUpList } from './contact/FollowUpList';
@@ -27,6 +27,8 @@ import { DonationModal } from './contact/DonationModal';
 import { DonationsSection } from './contact/DonationsSection';
 import { ContactNav } from './contact/ContactNav';
 import { CompanyOverview } from './contact/CompanyOverview';
+import { CallScriptModal } from './contact/CallScriptModal';
+import { FaqModal } from './contact/FaqModal';
 
 export function ContactPage() {
   const { id } = useParams<{ id?: string }>();
@@ -36,15 +38,30 @@ export function ContactPage() {
   const createNote = useCreateNote();
   const isSuper = useIsSuperAdmin();
   const navigate = useNavigate();
+  const setSticky = useSetStickyCustomer();
   const [composerOpen, setComposerOpen] = useState(false);
   const [donationOpen, setDonationOpen] = useState(false);
+  const [newFollowUpOpen, setNewFollowUpOpen] = useState(false);
+  const [scriptOpen, setScriptOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(false);
 
   // The hook signature requires an id, but the buttons that call its
   // mutations only render once we have customer.data. Empty-string sentinel
   // keeps the hook order stable while id is undefined.
-  const archive = useArchiveCustomer(id ?? '');
   const restore = useRestoreCustomer(id ?? '');
   const hardDelete = useDeleteCustomer(id ?? '');
+
+  const loadedId = customer.data?.id ?? null;
+  useEffect(() => {
+    if (loadedId) setSticky(loadedId);
+  }, [loadedId, setSticky]);
+
+  // If the customer in the URL no longer exists (e.g. sticky points at a
+  // deleted row), drop the sticky so the next landing falls back to the queue
+  // head instead of looping on a dead id.
+  useEffect(() => {
+    if (customer.error) setSticky(null);
+  }, [customer.error, setSticky]);
 
   if (!id) {
     return <ContactLanding />;
@@ -68,16 +85,11 @@ export function ContactPage() {
   const primaryEmail = primary?.email ?? null;
   const primaryPhone = primary?.phone ?? null;
   const allContacts = sortedContacts(c);
-
-  async function onArchive() {
-    if (!confirm(`Archive ${name}? They will be hidden from the ledger but kept for audit. You can restore later.`)) return;
-    try {
-      await archive.mutateAsync();
-      navigate('/contact');
-    } catch (e) {
-      alert((e as Error).message);
-    }
-  }
+  const followUpList = followUps.data ?? [];
+  // Hide the Follow-ups card when there is nothing to show, unless the user
+  // is actively opening a brand-new follow-up via the shortcut next to the
+  // Log a note header.
+  const showFollowUpsCard = followUpList.length > 0 || newFollowUpOpen;
 
   async function onRestore() {
     try {
@@ -96,6 +108,7 @@ export function ContactPage() {
       return;
     try {
       await hardDelete.mutateAsync();
+      setSticky(null);
       navigate('/ledger');
     } catch (e) {
       alert((e as Error).message);
@@ -105,46 +118,31 @@ export function ContactPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
       <header className="card">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <h1 className="text-2xl font-semibold truncate">{name}</h1>
-              {isArchived && (
-                <span className="shrink-0 text-[10px] uppercase tracking-wide bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-2 py-0.5 rounded-full">
-                  Archived
-                </span>
-              )}
-            </div>
-            <div className="text-sm text-ink-500 dark:text-ink-400 truncate">
-              {primaryEmail && (
-                <a href={`mailto:${primaryEmail}`} className="hover:text-accent">{primaryEmail}</a>
-              )}
-              {primaryEmail && primaryPhone && ' - '}
-              {primaryPhone && (
-                <a href={`tel:${primaryPhone}`} className="hover:text-accent">{primaryPhone}</a>
-              )}
-            </div>
-            {c.website && (
-              <div className="text-xs text-ink-500 dark:text-ink-400 truncate">
-                <a href={ensureProtocol(c.website)} target="_blank" rel="noreferrer" className="hover:text-accent">
-                  {c.website}
-                </a>
-              </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-2xl font-semibold break-words">{name}</h1>
+            {isArchived && (
+              <span className="shrink-0 text-[10px] uppercase tracking-wide bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-2 py-0.5 rounded-full">
+                Archived
+              </span>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {!isArchived && (
-              <button
-                type="button"
-                onClick={onArchive}
-                disabled={archive.isPending}
-                className="text-xs text-ink-500 dark:text-ink-400 hover:text-ink-700 dark:hover:text-ink-200"
-              >
-                Archive
-              </button>
+          <div className="text-sm text-ink-500 dark:text-ink-400 truncate">
+            {primaryEmail && (
+              <a href={`mailto:${primaryEmail}`} className="hover:text-accent">{primaryEmail}</a>
             )}
-            <Link to={`/update?id=${c.id}`} className="text-sm text-ink-500 dark:text-ink-400">Edit</Link>
+            {primaryEmail && primaryPhone && ' - '}
+            {primaryPhone && (
+              <a href={`tel:${primaryPhone}`} className="hover:text-accent">{primaryPhone}</a>
+            )}
           </div>
+          {c.website && (
+            <div className="text-xs text-ink-500 dark:text-ink-400 truncate">
+              <a href={ensureProtocol(c.website)} target="_blank" rel="noreferrer" className="hover:text-accent">
+                {c.website}
+              </a>
+            </div>
+          )}
         </div>
         <CompanyOverview customer={c} />
         <div className="text-xs text-ink-400 dark:text-ink-500 mt-3">
@@ -182,6 +180,14 @@ export function ContactPage() {
         </section>
       ) : (
         <>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" className="btn-ghost" onClick={() => setScriptOpen(true)}>
+              Call script
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => setFaqOpen(true)}>
+              FAQ
+            </button>
+          </div>
           <div className="grid grid-cols-3 gap-2">
             <a
               className="btn-primary"
@@ -221,7 +227,15 @@ export function ContactPage() {
 
           <PeopleSection customer={c} contacts={allContacts} />
 
-          <FollowUpList customerId={c.id} charityId={c.charity_id} followUps={followUps.data ?? []} />
+          {showFollowUpsCard && (
+            <FollowUpList
+              customerId={c.id}
+              charityId={c.charity_id}
+              followUps={followUpList}
+              showNew={newFollowUpOpen}
+              onShowNewChange={setNewFollowUpOpen}
+            />
+          )}
         </>
       )}
 
@@ -229,7 +243,18 @@ export function ContactPage() {
 
       {!isArchived && (
         <section className="card space-y-3">
-          <h2 className="font-semibold">Log a note</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Log a note</h2>
+            {!showFollowUpsCard && (
+              <button
+                type="button"
+                onClick={() => setNewFollowUpOpen(true)}
+                className="text-accent text-sm"
+              >
+                + Follow-up
+              </button>
+            )}
+          </div>
           <NoteForm customerId={c.id} charityId={c.charity_id} />
         </section>
       )}
@@ -254,6 +279,18 @@ export function ContactPage() {
           onClose={() => setDonationOpen(false)}
         />
       )}
+
+      {scriptOpen && !isArchived && (
+        <CallScriptModal
+          customerId={c.id}
+          charityId={c.charity_id}
+          onClose={() => setScriptOpen(false)}
+        />
+      )}
+
+      {faqOpen && !isArchived && (
+        <FaqModal charityId={c.charity_id} onClose={() => setFaqOpen(false)} />
+      )}
     </div>
   );
 }
@@ -262,6 +299,13 @@ function ContactLanding() {
   const { activeCharityId } = useActiveCharity();
   const profile = useProfile();
   const queue = useContactQueue(activeCharityId);
+  const sticky = useStickyCustomer();
+
+  // Sticky wins: if a customer was last viewed in this charity, jump straight
+  // back there before consulting the queue head.
+  if (sticky) {
+    return <Navigate to={`/contact/${sticky}`} replace />;
+  }
 
   // Gate the redirect on the profile load so we honor the user's saved sort
   // preference instead of jumping to the default-sorted first card and then

@@ -7,6 +7,7 @@ import {
   displayName,
   primaryContact,
   sortedContacts,
+  useArchiveCustomer,
   useCustomer,
   useUpdateCustomer,
   type CustomerContactRow,
@@ -18,19 +19,24 @@ import {
   useSetPrimaryContact,
   useUpdateContact,
 } from '@/state/contacts';
+import { useSetStickyCustomer, useStickyCustomer } from '@/state/stickyCustomer';
+import { compactMoney, formatWholeUSD } from '@/lib/format';
+import { VisitStopwatch } from '@/components/VisitStopwatch';
 
 export function UpdatePage() {
   const { activeCharityId } = useActiveCharity();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const sticky = useStickyCustomer();
+  const setSticky = useSetStickyCustomer();
 
   const explicitId = params.get('id') ?? null;
 
-  // Find next incomplete customer when no id is provided.
+  // Find next incomplete customer when no id is provided and no sticky exists.
   const nextQuery = useQuery({
     queryKey: ['next-incomplete', activeCharityId],
-    enabled: !!activeCharityId && !explicitId,
+    enabled: !!activeCharityId && !explicitId && !sticky,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
@@ -47,11 +53,26 @@ export function UpdatePage() {
     },
   });
 
-  const activeId = explicitId ?? nextQuery.data?.id ?? null;
+  const activeId = explicitId ?? sticky ?? nextQuery.data?.id ?? null;
   const customer = useCustomer(activeId ?? undefined);
+
+  useEffect(() => {
+    if (activeId) setSticky(activeId);
+  }, [activeId, setSticky]);
+
+  // If we landed on a customer purely via sticky and they turn out to be
+  // archived or gone (deleted), drop the sticky so next-incomplete kicks in on
+  // the next render instead of looping on a dead id.
+  useEffect(() => {
+    if (explicitId) return;
+    if (customer.data?.archived_at || customer.error) {
+      setSticky(null);
+    }
+  }, [explicitId, customer.data?.archived_at, customer.error, setSticky]);
 
   function nextCustomer() {
     setParams({});
+    setSticky(null);
     qc.invalidateQueries({ queryKey: ['next-incomplete', activeCharityId] });
   }
 
@@ -92,6 +113,10 @@ export type FieldDef = {
   label: string;
   type?: 'text' | 'email' | 'tel' | 'url' | 'select' | 'money';
   placeholder?: string;
+  // Money fields only. Default false (e.g. revenue, assets cannot go below 0).
+  // Net income on a 990 can legitimately be negative, so the input strips a
+  // single leading `-` before parsing only when this flag is on.
+  allowNegative?: boolean;
 };
 
 export const FIELDS: FieldDef[] = [
@@ -108,17 +133,113 @@ export const FILING_FIELDS: FieldDef[] = [
   { key: 'ein', label: 'EIN', placeholder: 'XX-XXXXXXX' },
   { key: 'filing_tax_period', label: 'Tax period', placeholder: 'e.g. 202312' },
   { key: 'filing_revenue', label: 'Last revenue', type: 'money' },
-  { key: 'filing_income', label: 'Last income', type: 'money' },
+  { key: 'filing_income', label: 'Last income', type: 'money', allowNegative: true },
   { key: 'filing_assets', label: 'Last assets', type: 'money' },
 ];
 
-export const MONEY_FMT = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-});
-
 type CustomerFieldValue = CustomerRow[keyof CustomerRow];
+
+// Money input that shows `$93,250,000,000` inside the field as the user types
+// (with caret-safe comma insertion) and the abbreviated `93.3b` form just
+// below. Stored value remains a plain whole-dollar number so the parent's
+// autosave continues to work unchanged.
+function MoneyField({
+  label,
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  allowNegative,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (n: number | null) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  allowNegative?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [display, setDisplay] = useState<string>(value != null ? formatWholeUSD(value) : '');
+
+  // Reseed the displayed string when the underlying value changes from
+  // outside the input (e.g. the Update queue advances to a new customer).
+  useEffect(() => {
+    setDisplay((prev) => {
+      const fresh = value != null ? formatWholeUSD(value) : '';
+      return prev === fresh ? prev : fresh;
+    });
+  }, [value]);
+
+  function parse(raw: string): number | null {
+    let digits = raw.replace(/[^\d-]/g, '');
+    let negative = false;
+    if (allowNegative && digits.startsWith('-')) negative = true;
+    digits = digits.replace(/-/g, '');
+    if (digits === '') return null;
+    const n = Number(digits);
+    if (!Number.isFinite(n)) return null;
+    return negative ? -n : n;
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const el = e.currentTarget;
+    const raw = el.value;
+    const caret = el.selectionStart ?? raw.length;
+
+    // Count the "anchor" characters (digits + an optional leading sign) to
+    // the left of the caret in the raw input. We restore the caret by
+    // walking the formatted string until the same count is reached.
+    const leftSlice = raw.slice(0, caret);
+    const digitsLeft = (leftSlice.match(/\d/g) ?? []).length;
+    const signLeft = allowNegative && leftSlice.includes('-') ? 1 : 0;
+    const anchorsLeft = digitsLeft + signLeft;
+
+    const num = parse(raw);
+    const formatted = num == null ? '' : formatWholeUSD(num);
+
+    setDisplay(formatted);
+    onChange(num);
+
+    requestAnimationFrame(() => {
+      const node = inputRef.current;
+      if (!node) return;
+      let i = 0;
+      let count = 0;
+      while (i < formatted.length && count < anchorsLeft) {
+        if (/[\d-]/.test(formatted[i])) count++;
+        i++;
+      }
+      try {
+        node.setSelectionRange(i, i);
+      } catch {
+        // setSelectionRange throws on inputs that don't support text selection
+        // (some mobile browsers in number-keyboard mode). Safe to ignore.
+      }
+    });
+  }
+
+  const num = value != null && Number.isFinite(value) ? value : null;
+
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <input
+        ref={inputRef}
+        className="field"
+        type="text"
+        inputMode={allowNegative ? 'text' : 'numeric'}
+        autoComplete="off"
+        disabled={disabled}
+        placeholder={placeholder}
+        value={display}
+        onChange={handleChange}
+      />
+      {num != null && (
+        <p className="text-xs text-ink-400 dark:text-ink-500 mt-1">{compactMoney(num)}</p>
+      )}
+    </div>
+  );
+}
 
 export function CustomerFieldInput({
   field,
@@ -155,28 +276,15 @@ export function CustomerFieldInput({
     );
   }
   if (field.type === 'money') {
-    const raw = value as number | null;
     return (
-      <div>
-        <label className="label">{field.label}</label>
-        <input
-          className="field"
-          inputMode="numeric"
-          type="number"
-          min={0}
-          step={1}
-          disabled={disabled}
-          placeholder={field.placeholder}
-          value={raw ?? ''}
-          onChange={(e) => {
-            const v = e.target.value.trim();
-            onChange(field.key, (v === '' ? null : Number(v)) as CustomerFieldValue);
-          }}
-        />
-        {raw != null && Number.isFinite(raw) && (
-          <p className="text-xs text-ink-400 dark:text-ink-500 mt-1">{MONEY_FMT.format(raw)}</p>
-        )}
-      </div>
+      <MoneyField
+        label={field.label}
+        value={value as number | null}
+        placeholder={field.placeholder}
+        disabled={disabled}
+        allowNegative={field.allowNegative}
+        onChange={(n) => onChange(field.key, n as CustomerFieldValue)}
+      />
     );
   }
   return (
@@ -196,9 +304,20 @@ export function CustomerFieldInput({
 
 function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () => void }) {
   const update = useUpdateCustomer(customer.id);
+  const archive = useArchiveCustomer(customer.id);
   const [draft, setDraft] = useState<Partial<CustomerRow>>({});
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const saveTimer = useRef<number | null>(null);
+
+  async function onArchive() {
+    if (!confirm(`Archive ${displayName(customer)}? Hidden from the ledger but kept for audit; restore from Ledger later.`)) return;
+    try {
+      await archive.mutateAsync();
+      onNext();
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
 
   // Reset draft when we move to a new customer.
   useEffect(() => {
@@ -244,14 +363,26 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 space-y-4">
       <header className="card">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-semibold truncate">{displayName(customer)}</h1>
-          <span className="text-xs font-medium text-ink-500 dark:text-ink-400">{customer.completeness_score}% complete</span>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-xs font-medium text-ink-500 dark:text-ink-400">{customer.completeness_score}% complete</span>
+            {!customer.archived_at && (
+              <button
+                type="button"
+                onClick={onArchive}
+                disabled={archive.isPending}
+                className="text-xs text-ink-500 dark:text-ink-400 hover:text-ink-700 dark:hover:text-ink-200"
+              >
+                Archive
+              </button>
+            )}
+          </div>
         </div>
         <div className="mt-1 h-1.5 bg-ink-100 dark:bg-ink-800 rounded-full overflow-hidden">
           <div className="h-full bg-accent" style={{ width: `${customer.completeness_score}%` }} />
         </div>
-        <div className="flex gap-2 mt-3 text-xs">
+        <div className="flex flex-wrap justify-center gap-2 mt-3 text-xs">
           <ResearchLink label="LinkedIn" href={`https://www.linkedin.com/search/results/people/?keywords=${queryName}`} />
           <ResearchLink label="Google" href={`https://www.google.com/search?q=${queryName}`} />
           <ResearchLink label="Facebook" href={`https://www.facebook.com/search/people/?q=${queryName}`} />
@@ -288,6 +419,10 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
         <button type="button" className="btn-primary" onClick={onNext}>
           Save & next
         </button>
+      </div>
+
+      <div className="flex justify-center pt-1">
+        <VisitStopwatch />
       </div>
     </div>
   );

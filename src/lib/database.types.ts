@@ -45,6 +45,24 @@ export interface Database {
           receipt_disclaimer: string | null;
           stripe_account_id: string | null;
           stripe_charges_enabled: boolean;
+          check_payable_to: string | null;
+          check_mail_to_line1: string | null;
+          check_mail_to_line2: string | null;
+          check_mail_to_city: string | null;
+          check_mail_to_state: string | null;
+          check_mail_to_postal_code: string | null;
+          check_memo_default: string | null;
+          check_instructions_md: string | null;
+          ach_bank_name: string | null;
+          ach_account_name: string | null;
+          ach_account_type: 'checking' | 'savings' | null;
+          ach_routing_number: string | null;
+          ach_account_number: string | null;
+          wire_swift_bic: string | null;
+          wire_intermediary_md: string | null;
+          ach_instructions_md: string | null;
+          card_default_amount_cents: number | null;
+          card_recurring_enabled: boolean;
           created_at: string;
         };
         Insert: Partial<Database['public']['Tables']['charities']['Row']> & { name: string };
@@ -256,6 +274,78 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['donations']['Row']>;
         Relationships: [];
       };
+      customer_visits: {
+        Row: {
+          id: string;
+          customer_id: string;
+          charity_id: string;
+          user_id: string;
+          started_at: string;
+          ended_at: string;
+          duration_seconds: number;
+          created_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['customer_visits']['Row']> & {
+          customer_id: string;
+          charity_id: string;
+          user_id: string;
+          started_at: string;
+          ended_at: string;
+          duration_seconds: number;
+        };
+        Update: Partial<Database['public']['Tables']['customer_visits']['Row']>;
+        Relationships: [];
+      };
+      call_script_items: {
+        Row: {
+          id: string;
+          charity_id: string;
+          body: string;
+          sort_order: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['call_script_items']['Row']> & {
+          charity_id: string;
+          body: string;
+        };
+        Update: Partial<Database['public']['Tables']['call_script_items']['Row']>;
+        Relationships: [];
+      };
+      call_script_ticks: {
+        Row: {
+          customer_id: string;
+          item_id: string;
+          charity_id: string;
+          ticked_by: string | null;
+          ticked_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['call_script_ticks']['Row']> & {
+          customer_id: string;
+          item_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['call_script_ticks']['Row']>;
+        Relationships: [];
+      };
+      faq_entries: {
+        Row: {
+          id: string;
+          charity_id: string;
+          question: string;
+          answer: string;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['faq_entries']['Row']> & {
+          charity_id: string;
+          question: string;
+          answer: string;
+        };
+        Update: Partial<Database['public']['Tables']['faq_entries']['Row']>;
+        Relationships: [];
+      };
       push_subscriptions: {
         Row: {
           id: string;
@@ -322,7 +412,19 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      list_charity_members: {
+        Args: { c_id: string };
+        Returns: Array<{
+          user_id: string;
+          email: string | null;
+          full_name: string | null;
+          role: 'admin' | 'rep';
+          invited_at: string | null;
+          accepted_at: string | null;
+        }>;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

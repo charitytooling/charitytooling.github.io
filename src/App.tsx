@@ -10,6 +10,7 @@ import { ImportDafPage } from './routes/ImportDaf';
 import { CalendarPage } from './routes/Calendar';
 import { AdminPage } from './routes/Admin';
 import { SettingsPage } from './routes/Settings';
+import { MePage } from './routes/Me';
 import { StripeCallback } from './routes/StripeCallback';
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/admin/*" element={<AdminPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/me" element={<MePage />} />
         <Route path="/charities/:id/stripe/callback" element={<StripeCallback />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

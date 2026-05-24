@@ -5,16 +5,22 @@ export function FollowUpList({
   customerId,
   charityId,
   followUps,
+  showNew,
+  onShowNewChange,
 }: {
   customerId: string;
   charityId: string;
   followUps: FollowUpRow[];
+  // Controlled by the parent so an outside button (e.g. the "+ Follow-up"
+  // shortcut next to the Log a note header) can deep-link straight into the
+  // new-follow-up form.
+  showNew: boolean;
+  onShowNewChange: (next: boolean) => void;
 }) {
   const open = followUps.filter((f) => f.status === 'open');
   const snoozed = followUps.filter((f) => f.status === 'snoozed');
   const done = followUps.filter((f) => f.status === 'done').slice(0, 3);
 
-  const [showNew, setShowNew] = useState(false);
   const create = useCreateFollowUp();
   const update = useUpdateFollowUp();
 
@@ -22,7 +28,7 @@ export function FollowUpList({
     <section className="card space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">Follow-ups</h2>
-        <button type="button" onClick={() => setShowNew((s) => !s)} className="text-accent text-sm">
+        <button type="button" onClick={() => onShowNewChange(!showNew)} className="text-accent text-sm">
           {showNew ? 'Cancel' : '+ Add'}
         </button>
       </div>
@@ -35,7 +41,7 @@ export function FollowUpList({
               charity_id: charityId,
               ...input,
             });
-            setShowNew(false);
+            onShowNewChange(false);
           }}
         />
       )}

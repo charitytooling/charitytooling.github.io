@@ -29,6 +29,17 @@
   .safe-top {
     padding-top: max(env(safe-area-inset-top), 0.5rem);
   }
+  /* Allow horizontal scrolling without rendering a scrollbar. Useful for
+     mobile-style chip rows where the row should still be draggable but the
+     bar itself adds visual noise (and shows up persistently on macOS when the
+     user has "Show scroll bars: Always" enabled). */
+  .no-scrollbar {
+    scrollbar-width: none;        /* Firefox */
+    -ms-overflow-style: none;     /* IE/legacy Edge */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;                /* WebKit (Chrome, Safari) */
+  }
 }
 
 @layer components {

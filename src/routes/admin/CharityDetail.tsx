@@ -13,6 +13,10 @@ import {
   type TemplateRow,
   type TemplateKind,
 } from '@/state/templates';
+import { DonationInstructionsCard } from './DonationInstructionsCard';
+import type { Database } from '@/lib/database.types';
+
+type CharityRow = Database['public']['Tables']['charities']['Row'];
 
 export function CharityDetail() {
   const { id } = useParams<{ id: string }>();
@@ -64,50 +68,8 @@ export function CharityDetail() {
       <MembersSection charityId={charityId} canAdmin={canAdmin} />
       {canAdmin && <InvitationsSection charityId={charityId} />}
       {canAdmin && <TemplatesSection charityId={charityId} />}
-      {canAdmin && <StripeSection charity={charity.data} />}
+      {canAdmin && <DonationInstructionsCard charity={charity.data as CharityRow} />}
     </div>
-  );
-}
-
-function StripeSection({ charity }: { charity: Record<string, unknown> }) {
-  const connect = useMutation({
-    mutationFn: async () =>
-      edgeFunctions.stripeConnect({ action: 'start', charity_id: charity.id as string }),
-  });
-
-  const connected = charity.stripe_account_id && charity.stripe_charges_enabled;
-
-  return (
-    <section className="card space-y-3">
-      <h2 className="font-semibold">Card donations (Stripe)</h2>
-      {connected ? (
-        <p className="text-sm text-ink-700 dark:text-ink-200">
-          Connected to Stripe account <code className="text-xs">{charity.stripe_account_id as string}</code>.
-          Donors who pay via the "Donate now" link in your emails will appear here automatically.
-        </p>
-      ) : charity.stripe_account_id ? (
-        <p className="text-sm text-amber-700">
-          Stripe is partially connected (account <code className="text-xs">{charity.stripe_account_id as string}</code>),
-          but charges are not enabled yet. Complete onboarding in Stripe.
-        </p>
-      ) : (
-        <p className="text-sm text-ink-700 dark:text-ink-200">
-          Connect Stripe to let donors pay by card directly from your emails. The charity owns the Stripe account; CharityTooling never holds funds.
-        </p>
-      )}
-      <button
-        type="button"
-        className="btn-primary"
-        disabled={connect.isPending}
-        onClick={async () => {
-          const res = await connect.mutateAsync();
-          if (res.url) window.location.href = res.url;
-        }}
-      >
-        {connect.isPending ? 'Loading...' : connected ? 'Re-connect Stripe' : 'Connect Stripe'}
-      </button>
-      {connect.error && <p className="text-red-600 text-sm">{(connect.error as Error).message}</p>}
-    </section>
   );
 }
 

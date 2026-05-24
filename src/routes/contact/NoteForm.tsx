@@ -27,7 +27,7 @@ export function NoteForm({ customerId, charityId }: { customerId: string; charit
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-1 overflow-x-auto -mx-1 px-1">
+      <div className="flex gap-1 overflow-x-auto no-scrollbar -mx-1 px-1">
         {KINDS.map((k) => (
           <button
             key={k.value}

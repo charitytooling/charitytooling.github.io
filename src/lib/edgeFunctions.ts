@@ -51,4 +51,33 @@ export const edgeFunctions = {
   stripeCheckout(args: { charity_id: string; customer_id: string; amount_cents?: number }) {
     return invoke<{ url: string }>(`stripe-connect?action=checkout`, args);
   },
+  stripeInvoice(args: {
+    charity_id: string;
+    customer_id: string;
+    amount_cents: number;
+    description?: string;
+    send?: boolean;
+  }) {
+    return invoke<{ ok: true; url: string | null; invoice_id: string; stripe_customer_id: string }>(
+      `stripe-connect?action=invoice`,
+      args,
+    );
+  },
+  stripeSubscriptionCheckout(args: {
+    charity_id: string;
+    customer_id: string;
+    amount_cents: number;
+    interval?: 'month' | 'year' | 'week';
+  }) {
+    return invoke<{ url: string }>(`stripe-connect?action=subscription_checkout`, args);
+  },
+  sendPaymentInstructions(args: {
+    charity_id: string;
+    customer_id: string;
+    contact_id?: string;
+    method: 'check' | 'ach';
+    rep_message_md?: string;
+  }) {
+    return invoke<{ ok: true; resend_id: string | null }>('send-payment-instructions', args);
+  },
 };

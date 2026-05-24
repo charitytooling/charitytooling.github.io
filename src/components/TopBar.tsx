@@ -11,7 +11,18 @@ export function TopBar() {
     <header className="sticky top-0 z-20 bg-white/90 dark:bg-ink-900/90 backdrop-blur border-b border-ink-100 dark:border-ink-800">
       <div className="mx-auto max-w-3xl flex items-center justify-between px-4 py-3 safe-top">
         <div className="flex items-center gap-2 min-w-0">
-          <img src="/icon.svg" alt="" className="h-7 w-7 shrink-0" />
+          <NavLink
+            to="/me"
+            aria-label="My activity"
+            className={({ isActive }) =>
+              [
+                'rounded-lg p-1 shrink-0 hover:bg-ink-100 dark:hover:bg-ink-800',
+                isActive ? 'ring-2 ring-accent/40' : '',
+              ].join(' ')
+            }
+          >
+            <img src="/icon.svg" alt="" className="h-7 w-7" />
+          </NavLink>
           <CharitySwitcher />
         </div>
         <div className="flex items-center gap-1">
@@ -67,7 +78,7 @@ export function TopBar() {
 function badgeText(d: number): string {
   if (d < 0) return '!';
   if (d > 99) return '99+';
-  return String(d);
+  return `${d}d`;
 }
 
 function badgeLabel(d: number): string {

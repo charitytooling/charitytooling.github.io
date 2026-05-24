@@ -182,9 +182,15 @@ export function displayName(
 // Supabase returns the embedded relation as `customer_contacts: [...]`. The
 // nested-select returns rows in arbitrary order; ensure the array is at
 // least an array so downstream helpers can rely on .find / .map / .filter.
-function normalizeCustomer(row: CustomerBase & { customer_contacts?: CustomerContactRow[] | null }): CustomerRow {
+//
+// The input is typed as `unknown` because supabase-js's nested-select type
+// inference produces a `SelectQueryError` for `customer_contacts` until
+// relationship metadata is declared on the generated `Database` types.
+// The runtime shape is the same either way, so we cast on the way out.
+function normalizeCustomer(row: unknown): CustomerRow {
+  const r = row as CustomerBase & { customer_contacts?: CustomerContactRow[] | null };
   return {
-    ...row,
-    customer_contacts: row.customer_contacts ?? [],
+    ...r,
+    customer_contacts: r.customer_contacts ?? [],
   } as CustomerRow;
 }
