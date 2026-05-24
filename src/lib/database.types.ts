@@ -163,6 +163,43 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['customer_contacts']['Row']>;
         Relationships: [];
       };
+      customer_field_defs: {
+        Row: {
+          id: string;
+          charity_id: string;
+          label: string;
+          kind: 'text' | 'url' | 'email' | 'tel' | 'number' | 'money';
+          sort_order: number;
+          archived_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['customer_field_defs']['Row']> & {
+          charity_id: string;
+          label: string;
+          kind: 'text' | 'url' | 'email' | 'tel' | 'number' | 'money';
+        };
+        Update: Partial<Database['public']['Tables']['customer_field_defs']['Row']>;
+        Relationships: [];
+      };
+      customer_field_values: {
+        Row: {
+          id: string;
+          customer_id: string;
+          charity_id: string;
+          field_def_id: string;
+          value: string | null;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['customer_field_values']['Row']> & {
+          customer_id: string;
+          field_def_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['customer_field_values']['Row']>;
+        Relationships: [];
+      };
       notes: {
         Row: {
           id: string;

@@ -34,6 +34,19 @@ import {
   useSetPrimaryContact,
   useUpdateContact,
 } from '@/state/contacts';
+import {
+  CUSTOM_FIELD_KINDS,
+  useAllCustomFieldDefs,
+  useArchiveFieldDef,
+  useCreateFieldDef,
+  useCustomFieldDefs,
+  useCustomerFieldValues,
+  useRestoreFieldDef,
+  useUpdateFieldDef,
+  useUpsertFieldValue,
+  type CustomerFieldDefRow,
+  type CustomerFieldKind,
+} from '@/state/customFields';
 import { useSetStickyCustomer, useStickyCustomer } from '@/state/stickyCustomer';
 import { compactMoney, formatWholeUSD } from '@/lib/format';
 import { VisitStopwatch } from '@/components/VisitStopwatch';
@@ -123,10 +136,14 @@ export function UpdatePage() {
   return <UpdateForm customer={customer.data} onNext={nextCustomer} />;
 }
 
-export type FieldDef = {
-  key: keyof CustomerRow;
+// `K` defaults to `keyof CustomerRow` so existing call sites (FIELDS,
+// FILING_FIELDS, ImportDaf) keep their tight typing. Custom-field consumers
+// pass `K = string` so the same component can drive dynamic per-charity
+// definitions (see ./customFields).
+export type FieldDef<K extends string = keyof CustomerRow & string> = {
+  key: K;
   label: string;
-  type?: 'text' | 'email' | 'tel' | 'url' | 'select' | 'money';
+  type?: 'text' | 'email' | 'tel' | 'url' | 'select' | 'money' | 'number';
   placeholder?: string;
   // Money fields only. Default false (e.g. revenue, assets cannot go below 0).
   // Net income on a 990 can legitimately be negative, so the input strips a
@@ -256,18 +273,20 @@ function MoneyField({
   );
 }
 
-export function CustomerFieldInput({
+export function CustomerFieldInput<K extends string = keyof CustomerRow & string>({
   field,
   value,
   onChange,
   disabled,
 }: {
-  field: FieldDef;
+  field: FieldDef<K>;
   value: CustomerFieldValue | null;
-  onChange: (key: keyof CustomerRow, value: CustomerFieldValue) => void;
+  onChange: (key: K, value: CustomerFieldValue) => void;
   disabled?: boolean;
 }) {
-  if (field.type === 'select' && field.key === 'preferred_contact_method') {
+  // `select` is currently only used by the hardcoded `preferred_contact_method`
+  // field. Custom fields don't surface `select` in v1.
+  if (field.type === 'select') {
     return (
       <div>
         <label className="label">{field.label}</label>
@@ -276,10 +295,7 @@ export function CustomerFieldInput({
           disabled={disabled}
           value={(value as string | null) ?? ''}
           onChange={(e) =>
-            onChange(
-              'preferred_contact_method',
-              (e.target.value || null) as CustomerRow['preferred_contact_method'],
-            )
+            onChange(field.key, (e.target.value || null) as CustomerFieldValue)
           }
         >
           <option value="">(none)</option>
@@ -308,6 +324,7 @@ export function CustomerFieldInput({
       <input
         className="field"
         type={field.type ?? 'text'}
+        inputMode={field.type === 'number' ? 'numeric' : undefined}
         disabled={disabled}
         placeholder={field.placeholder}
         value={(value as string | null) ?? ''}
@@ -419,6 +436,8 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
       <section className="card space-y-3">
         {FIELDS.map((f) => renderField(f))}
       </section>
+
+      <CustomFieldsSection customer={customer} />
 
       <ContactsSection customer={customer} />
 
@@ -673,6 +692,348 @@ function ContactEditor({ contact }: { contact: CustomerContactRow }) {
           placeholder="e.g. prefers email after 5pm; spouse is Pat"
         />
       </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Custom fields section (charity-wide field defs + per-customer values)
+// -----------------------------------------------------------------------------
+
+function defKindToFieldType(kind: CustomerFieldKind): FieldDef['type'] {
+  // 'text' maps to undefined so CustomerFieldInput uses its default <input>.
+  if (kind === 'text') return undefined;
+  return kind;
+}
+
+function kindLabel(kind: CustomerFieldKind): string {
+  switch (kind) {
+    case 'text':
+      return 'Text';
+    case 'url':
+      return 'URL';
+    case 'email':
+      return 'Email';
+    case 'tel':
+      return 'Phone';
+    case 'number':
+      return 'Number';
+    case 'money':
+      return 'Money';
+  }
+}
+
+// Storage in customer_field_values.value is always text. MoneyField wants a
+// number, so money fields are parsed/stringified at the section boundary.
+function valueForInput(kind: CustomerFieldKind, raw: string | null): CustomerFieldValue | null {
+  if (raw == null || raw === '') return null;
+  if (kind === 'money') {
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  return raw;
+}
+
+function valueForStorage(kind: CustomerFieldKind, next: CustomerFieldValue): string | null {
+  if (next == null || next === '') return null;
+  if (kind === 'money') {
+    return Number.isFinite(next as number) ? String(next) : null;
+  }
+  return String(next);
+}
+
+function CustomFieldsSection({ customer }: { customer: CustomerRow }) {
+  const defsQuery = useCustomFieldDefs(customer.charity_id);
+  const valuesQuery = useCustomerFieldValues(customer.id);
+  const upsertValue = useUpsertFieldValue();
+  const createDef = useCreateFieldDef();
+
+  // Per-def local draft so the input doesn't lag while the 600ms debounce ticks.
+  const [draft, setDraft] = useState<Record<string, string | null>>({});
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const timers = useRef<Record<string, number>>({});
+
+  // Inline + Add field composer
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newKind, setNewKind] = useState<CustomerFieldKind>('text');
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // Reset when switching customers.
+  useEffect(() => {
+    setDraft({});
+    setStatus('idle');
+    for (const id of Object.values(timers.current)) window.clearTimeout(id);
+    timers.current = {};
+  }, [customer.id]);
+
+  // Cancel any pending writes when the section unmounts.
+  useEffect(() => {
+    return () => {
+      for (const id of Object.values(timers.current)) window.clearTimeout(id);
+      timers.current = {};
+    };
+  }, []);
+
+  function getStoredValue(defId: string): string | null {
+    if (defId in draft) return draft[defId];
+    return valuesQuery.data?.[defId]?.value ?? null;
+  }
+
+  function scheduleSave(defId: string, nextStored: string | null) {
+    setDraft((d) => ({ ...d, [defId]: nextStored }));
+    setStatus('saving');
+    const existing = timers.current[defId];
+    if (existing) window.clearTimeout(existing);
+    timers.current[defId] = window.setTimeout(async () => {
+      try {
+        await upsertValue.mutateAsync({
+          customer_id: customer.id,
+          field_def_id: defId,
+          value: nextStored,
+        });
+        setStatus('saved');
+      } catch {
+        setStatus('error');
+      }
+    }, 600);
+  }
+
+  async function onAddDef() {
+    const label = newLabel.trim();
+    if (!label) return;
+    setAddError(null);
+    try {
+      await createDef.mutateAsync({
+        charity_id: customer.charity_id,
+        label,
+        kind: newKind,
+        sort_order: defsQuery.data?.length ?? 0,
+      });
+      setNewLabel('');
+      setNewKind('text');
+      setAdding(false);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  const defs = defsQuery.data ?? [];
+
+  return (
+    <section className="card space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="font-semibold">Custom fields ({defs.length})</h2>
+          <p className="text-xs text-ink-500 dark:text-ink-400">
+            Charity-wide. Any member can add a field; every other member sees it on every customer.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-ghost text-sm shrink-0"
+          onClick={() => {
+            setAdding((v) => !v);
+            setAddError(null);
+          }}
+        >
+          {adding ? 'Cancel' : '+ Add field'}
+        </button>
+      </div>
+
+      {defs.length === 0 && !adding && (
+        <p className="text-sm text-ink-500 dark:text-ink-400">
+          No custom fields yet. Click "+ Add field" to create one.
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {defs.map((def) => (
+          <CustomerFieldInput<string>
+            key={def.id}
+            field={{
+              key: def.id,
+              label: def.label,
+              type: defKindToFieldType(def.kind),
+            }}
+            value={valueForInput(def.kind, getStoredValue(def.id))}
+            onChange={(_key, next) => scheduleSave(def.id, valueForStorage(def.kind, next))}
+          />
+        ))}
+      </div>
+
+      {adding && (
+        <div className="space-y-2 pt-2 border-t border-ink-100 dark:border-ink-800">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2">
+              <label className="label">Field name</label>
+              <input
+                className="field"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="e.g. Twitter handle"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="label">Kind</label>
+              <select
+                className="field"
+                value={newKind}
+                onChange={(e) => setNewKind(e.target.value as CustomerFieldKind)}
+              >
+                {CUSTOM_FIELD_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {kindLabel(k)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            {addError && <p className="text-sm text-red-600 mr-auto">{addError}</p>}
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              onClick={onAddDef}
+              disabled={createDef.isPending || !newLabel.trim()}
+            >
+              {createDef.isPending ? 'Adding...' : 'Add field'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ManageCustomFields charityId={customer.charity_id} hasDefs={defs.length > 0} />
+
+      <p className="text-xs text-ink-500 dark:text-ink-400 px-1">
+        {status === 'saving' && 'Saving...'}
+        {status === 'saved' && 'Saved'}
+        {status === 'error' && <span className="text-red-600">Save failed - try again.</span>}
+        {status === 'idle' && '\u00a0'}
+      </p>
+    </section>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Manage custom fields (rename, archive, restore)
+// -----------------------------------------------------------------------------
+
+function ManageCustomFields({
+  charityId,
+  hasDefs,
+}: {
+  charityId: string;
+  hasDefs: boolean;
+}) {
+  const allDefs = useAllCustomFieldDefs(charityId);
+  const updateDef = useUpdateFieldDef();
+  const archiveDef = useArchiveFieldDef();
+  const restoreDef = useRestoreFieldDef();
+
+  // Defer fetching the full (including archived) list until the user opens
+  // the manager. allDefs is enabled by charityId; React Query will skip the
+  // network until something subscribes via a render with `<details open>`.
+  if (!hasDefs && (allDefs.data?.length ?? 0) === 0) return null;
+
+  const rows = allDefs.data ?? [];
+
+  return (
+    <details className="pt-2 border-t border-ink-100 dark:border-ink-800">
+      <summary className="cursor-pointer select-none text-sm font-medium text-ink-700 dark:text-ink-200">
+        Manage fields
+      </summary>
+      <p className="text-xs text-ink-500 dark:text-ink-400 mt-1">
+        Rename or archive existing fields. Archived fields hide from the form but their values are
+        kept and restored if you unarchive.
+      </p>
+      <div className="space-y-2 mt-3">
+        {rows.length === 0 && (
+          <p className="text-sm text-ink-500 dark:text-ink-400">No fields yet.</p>
+        )}
+        {rows.map((def) => (
+          <ManageCustomFieldRow
+            key={def.id}
+            def={def}
+            onRename={(label) =>
+              updateDef.mutate({ id: def.id, charity_id: def.charity_id, patch: { label } })
+            }
+            onArchive={() => archiveDef.mutate({ id: def.id, charity_id: def.charity_id })}
+            onRestore={() => restoreDef.mutate({ id: def.id, charity_id: def.charity_id })}
+            busy={updateDef.isPending || archiveDef.isPending || restoreDef.isPending}
+          />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function ManageCustomFieldRow({
+  def,
+  onRename,
+  onArchive,
+  onRestore,
+  busy,
+}: {
+  def: CustomerFieldDefRow;
+  onRename: (label: string) => void;
+  onArchive: () => void;
+  onRestore: () => void;
+  busy: boolean;
+}) {
+  const [label, setLabel] = useState(def.label);
+  const renameTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    setLabel(def.label);
+  }, [def.id, def.label]);
+
+  function onChangeLabel(next: string) {
+    setLabel(next);
+    if (renameTimer.current) window.clearTimeout(renameTimer.current);
+    renameTimer.current = window.setTimeout(() => {
+      const trimmed = next.trim();
+      if (trimmed && trimmed !== def.label) onRename(trimmed);
+    }, 600);
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        className="field flex-1"
+        value={label}
+        onChange={(e) => onChangeLabel(e.target.value)}
+        disabled={busy || !!def.archived_at}
+      />
+      <span className="text-xs text-ink-500 dark:text-ink-400 w-14 shrink-0">
+        {kindLabel(def.kind)}
+      </span>
+      {def.archived_at ? (
+        <button
+          type="button"
+          className="text-xs text-ink-500 dark:text-ink-400 hover:text-accent shrink-0"
+          onClick={onRestore}
+          disabled={busy}
+          title="Restore field"
+        >
+          Restore
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="text-xs text-ink-500 dark:text-ink-400 hover:text-red-600 shrink-0"
+          onClick={() => {
+            if (window.confirm(`Archive "${def.label}"? Values are kept and can be restored.`)) {
+              onArchive();
+            }
+          }}
+          disabled={busy}
+          title="Archive field"
+        >
+          Archive
+        </button>
+      )}
     </div>
   );
 }
