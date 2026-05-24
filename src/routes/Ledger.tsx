@@ -2,8 +2,16 @@ import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useActiveCharity } from '@/state/activeCharity';
-import { displayName, primaryContact, useCustomers, type CustomerRow } from '@/state/customers';
-import { AddCustomerModal } from './ledger/AddCustomerModal';
+import {
+  displayName,
+  primaryContact,
+  useCustomers,
+  useDeleteCustomer,
+  type CustomerRow,
+} from '@/state/customers';
+import { useIsSuperAdmin } from '@/state/profile';
+import { useLongPress } from '@/lib/useLongPress';
+import { AddCustomerModal, Modal } from './ledger/AddCustomerModal';
 import { CsvImportModal } from './ledger/CsvImportModal';
 
 export function LedgerPage() {
@@ -12,9 +20,32 @@ export function LedgerPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const isSuper = useIsSuperAdmin();
+  const [pendingDelete, setPendingDelete] = useState<CustomerRow | null>(null);
+  // useMutation regenerates the closure on each render, so passing the pending
+  // id (or an empty sentinel when nothing is queued) keeps the hook order
+  // stable while still targeting the right customer when fired.
+  const del = useDeleteCustomer(pendingDelete?.id ?? '');
   const { data: customers, isLoading } = useCustomers(activeCharityId, {
     includeArchived: showArchived,
   });
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    try {
+      await del.mutateAsync();
+      setPendingDelete(null);
+    } catch {
+      // Surface the error in-modal via del.error; keep the modal open so the
+      // user can retry or cancel.
+    }
+  }
+
+  function closeDeleteModal() {
+    if (del.isPending) return;
+    setPendingDelete(null);
+    del.reset();
+  }
 
   const filtered = useMemo(() => {
     if (!customers) return [];
@@ -121,7 +152,12 @@ export function LedgerPage() {
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  <CustomerRowItem customer={c} />
+                  <CustomerRowItem
+                    customer={c}
+                    canDelete={isSuper}
+                    isDeleting={del.isPending && pendingDelete?.id === c.id}
+                    onRequestDelete={setPendingDelete}
+                  />
                 </div>
               );
             })}
@@ -135,19 +171,70 @@ export function LedgerPage() {
       {showImport && activeCharityId && (
         <CsvImportModal charityId={activeCharityId} onClose={() => setShowImport(false)} />
       )}
+      {pendingDelete && (
+        <Modal title="Permanently delete customer" onClose={closeDeleteModal}>
+          <div className="space-y-3">
+            <p className="text-sm text-ink-700 dark:text-ink-200">
+              Permanently delete{' '}
+              <span className="font-semibold">{displayName(pendingDelete)}</span>? This cannot be
+              undone. All notes, follow-ups, and donations for this customer will also be deleted.
+            </p>
+            {del.error && (
+              <p className="text-red-600 text-sm">{(del.error as Error).message}</p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                className="btn-ghost flex-1"
+                onClick={closeDeleteModal}
+                disabled={del.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn flex-1 bg-red-600 text-white hover:bg-red-700 disabled:bg-ink-200 disabled:text-ink-500 disabled:cursor-not-allowed dark:disabled:bg-ink-800"
+                onClick={() => void confirmDelete()}
+                disabled={del.isPending}
+              >
+                {del.isPending ? 'Deleting...' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-function CustomerRowItem({ customer }: { customer: CustomerRow }) {
+function CustomerRowItem({
+  customer,
+  canDelete,
+  isDeleting,
+  onRequestDelete,
+}: {
+  customer: CustomerRow;
+  canDelete: boolean;
+  isDeleting: boolean;
+  onRequestDelete: (customer: CustomerRow) => void;
+}) {
   const isArchived = customer.archived_at != null;
   const primary = primaryContact(customer);
+
+  const longPress = useLongPress({
+    enabled: canDelete && !isDeleting,
+    onLongPress: () => onRequestDelete(customer),
+  });
+
   return (
     <Link
       to={`/contact/${customer.id}`}
+      {...longPress}
+      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
       className={[
         'block py-3 border-b border-ink-100 dark:border-ink-800 active:bg-ink-100/60',
         isArchived ? 'opacity-60' : '',
+        isDeleting ? 'opacity-40 pointer-events-none' : '',
       ].join(' ')}
     >
       <div className="flex items-center justify-between gap-3">

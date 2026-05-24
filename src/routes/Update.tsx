@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase';
 import { useActiveCharity } from '@/state/activeCharity';
 import {
   displayName,
-  primaryContact,
   sortedContacts,
   useArchiveCustomer,
   useCustomer,
@@ -13,6 +12,22 @@ import {
   type CustomerContactRow,
   type CustomerRow,
 } from '@/state/customers';
+import {
+  bizapediaUrl,
+  candidUrl,
+  causeIqUrl,
+  charityNavigatorUrl,
+  facebookUrl,
+  googleMapsUrl,
+  googleNewsUrl,
+  googleUrl,
+  irsTeosUrl,
+  linkedInCompanyUrl,
+  linkedInPeopleUrl,
+  propublicaUrl,
+  xUrl,
+  youtubeUrl,
+} from '@/lib/researchLinks';
 import {
   useCreateContact,
   useDeleteContact,
@@ -344,11 +359,6 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
     [draft, customer],
   );
 
-  const primary = primaryContact(customer);
-  const queryName = encodeURIComponent(
-    displayName(customer) + (primary?.email ? ` ${primary.email.split('@')[1]}` : ''),
-  );
-
   function renderField(f: FieldDef) {
     return (
       <CustomerFieldInput
@@ -382,10 +392,27 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
         <div className="mt-1 h-1.5 bg-ink-100 dark:bg-ink-800 rounded-full overflow-hidden">
           <div className="h-full bg-accent" style={{ width: `${customer.completeness_score}%` }} />
         </div>
-        <div className="flex flex-wrap justify-center gap-2 mt-3 text-xs">
-          <ResearchLink label="LinkedIn" href={`https://www.linkedin.com/search/results/people/?keywords=${queryName}`} />
-          <ResearchLink label="Google" href={`https://www.google.com/search?q=${queryName}`} />
-          <ResearchLink label="Facebook" href={`https://www.facebook.com/search/people/?q=${queryName}`} />
+        <div className="space-y-2 mt-3 text-xs">
+          <div className="flex flex-wrap justify-center gap-2">
+            <ResearchLink label="ProPublica" href={propublicaUrl(customer)} />
+            <ResearchLink label="IRS TEOS" href={irsTeosUrl(customer)} />
+            <ResearchLink label="Candid" href={candidUrl(customer)} />
+            <ResearchLink label="Cause IQ" href={causeIqUrl(customer)} />
+            <ResearchLink label="Charity Navigator" href={charityNavigatorUrl(customer)} />
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <ResearchLink label="Maps" href={googleMapsUrl(customer)} />
+            <ResearchLink label="Bizapedia" href={bizapediaUrl(customer)} />
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <ResearchLink label="LinkedIn (Co)" href={linkedInCompanyUrl(customer)} />
+            <ResearchLink label="LinkedIn" href={linkedInPeopleUrl(customer)} />
+            <ResearchLink label="Google" href={googleUrl(customer)} />
+            <ResearchLink label="Google News" href={googleNewsUrl(customer)} />
+            <ResearchLink label="Facebook" href={facebookUrl(customer)} />
+            <ResearchLink label="X" href={xUrl(customer)} />
+            <ResearchLink label="YouTube" href={youtubeUrl(customer)} />
+          </div>
         </div>
       </header>
 
@@ -395,14 +422,18 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
 
       <ContactsSection customer={customer} />
 
-      <section className="card space-y-3">
-        <div>
-          <h2 className="font-semibold">Public filing fields</h2>
-          <p className="text-xs text-ink-500 dark:text-ink-400">
+      <section className="card">
+        <details>
+          <summary className="cursor-pointer select-none font-semibold">
+            Public filing fields
+          </summary>
+          <p className="text-xs text-ink-500 dark:text-ink-400 mt-1">
             Most recent IRS Form 990 figures, in whole US dollars.
           </p>
-        </div>
-        {FILING_FIELDS.map((f) => renderField(f))}
+          <div className="space-y-3 mt-3">
+            {FILING_FIELDS.map((f) => renderField(f))}
+          </div>
+        </details>
       </section>
 
       <p className="text-xs text-ink-500 dark:text-ink-400 px-1">
@@ -428,7 +459,8 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
   );
 }
 
-function ResearchLink({ label, href }: { label: string; href: string }) {
+function ResearchLink({ label, href }: { label: string; href: string | null }) {
+  if (!href) return null;
   return (
     <a
       href={href}
@@ -436,7 +468,7 @@ function ResearchLink({ label, href }: { label: string; href: string }) {
       rel="noreferrer"
       className="px-3 py-1.5 rounded-full bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-200 font-medium"
     >
-      Search {label}
+      {label}
     </a>
   );
 }
