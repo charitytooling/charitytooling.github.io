@@ -49,30 +49,112 @@ function TopNav() {
 
 function Hero() {
   return (
-    <section className="mx-auto max-w-3xl px-4 sm:px-6 pt-14 pb-16 sm:pt-24 sm:pb-24 text-center sm:text-left">
-      <p className="text-xs uppercase tracking-wider font-semibold text-accent">
-        Every charity here gives 95%+ to programs
-      </p>
-      <h1 className="mt-4 text-3xl sm:text-5xl font-bold tracking-tight leading-tight">
-        If a charity sent you a receipt from charitytooling.com, you can trust where your
-        money went.
-      </h1>
-      <p className="mt-6 text-lg text-ink-600 dark:text-ink-300 leading-relaxed">
-        CharityTooling is the donor-management tool small charities use to keep track of
-        donations like yours - calls, emails, follow-ups, and tax receipts. Before we let a
-        charity onto the platform, we verify they spend at least 95% of every dollar on
-        charitable programs.
-      </p>
-      <p className="mt-8">
-        <a
-          href="#standard"
-          className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:text-accent-hover"
-        >
-          How we verify charities
-          <span aria-hidden="true">&darr;</span>
-        </a>
-      </p>
+    <section className="mx-auto max-w-5xl px-4 sm:px-6 pt-14 pb-16 sm:pt-24 sm:pb-24">
+      <div className="grid gap-10 sm:gap-12 md:grid-cols-2 md:items-center">
+        <div className="flex justify-center md:justify-start">
+          <ReceiptIllustration />
+        </div>
+        <div className="text-center md:text-left">
+          <h1 className="text-3xl sm:text-5xl font-bold tracking-tight leading-tight">
+            If your receipt to a charity came from us, you can trust where your money went.
+          </h1>
+          <p className="mt-6 text-lg text-ink-600 dark:text-ink-300 leading-relaxed">
+            CharityTooling is the donor-management tool for the Charity to keep track of
+            donations like yours. Until a charity gets over a certain size, we offer our services for
+            free and only accept groups that spend at least 95% of every dollar recived on
+            qualifying distributions. When you see our name you know your money was fully
+            comitted to their mission.
+          </p>
+          <p className="mt-8">
+            <a
+              href="#standard"
+              className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:text-accent-hover"
+            >
+              How we verify charities
+              <span aria-hidden="true">&darr;</span>
+            </a>
+          </p>
+        </div>
+      </div>
     </section>
+  );
+}
+
+function ReceiptIllustration() {
+  return (
+    <svg
+      viewBox="0 0 240 320"
+      className="w-full max-w-[220px] sm:max-w-[260px] md:max-w-[320px] -rotate-3 drop-shadow-md"
+      aria-hidden="true"
+    >
+      <path
+        d="M20 20 L220 20 L220 280 L210 290 L200 280 L190 290 L180 280 L170 290 L160 280 L150 290 L140 280 L130 290 L120 280 L110 290 L100 280 L90 290 L80 280 L70 290 L60 280 L50 290 L40 280 L30 290 L20 280 Z"
+        className="fill-white stroke-ink-200 dark:fill-ink-900 dark:stroke-ink-700"
+        strokeWidth="2"
+      />
+      <text
+        x="120"
+        y="55"
+        textAnchor="middle"
+        fontSize="14"
+        fontWeight="700"
+        letterSpacing="2"
+        className="fill-ink-700 dark:fill-ink-200"
+      >
+        DONATION RECEIPT
+      </text>
+      <line
+        x1="35"
+        y1="75"
+        x2="205"
+        y2="75"
+        strokeWidth="1.5"
+        strokeDasharray="3 3"
+        className="stroke-ink-300 dark:stroke-ink-600"
+      />
+      <rect x="35" y="92" width="90" height="6" rx="2" className="fill-ink-200 dark:fill-ink-700" />
+      <rect x="155" y="92" width="50" height="6" rx="2" className="fill-ink-200 dark:fill-ink-700" />
+      <rect x="35" y="108" width="70" height="6" rx="2" className="fill-ink-200 dark:fill-ink-700" />
+      <rect x="155" y="108" width="50" height="6" rx="2" className="fill-ink-200 dark:fill-ink-700" />
+      <rect x="35" y="124" width="100" height="6" rx="2" className="fill-ink-200 dark:fill-ink-700" />
+      <rect x="155" y="124" width="50" height="6" rx="2" className="fill-ink-200 dark:fill-ink-700" />
+      <line
+        x1="35"
+        y1="145"
+        x2="205"
+        y2="145"
+        strokeWidth="1.5"
+        strokeDasharray="3 3"
+        className="stroke-ink-300 dark:stroke-ink-600"
+      />
+      <path
+        d="M120 230 s-36 -15 -36 -50 a23 23 0 0 1 36 -19 a23 23 0 0 1 36 19 c0 28 -36 50 -36 50 z"
+        fill="none"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="stroke-accent"
+      />
+      <circle cx="120" cy="195" r="7" className="fill-accent" />
+      <path
+        d="M55 248 q10 -12 25 0 t25 0 t25 0 t25 0 t25 0"
+        fill="none"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        className="stroke-ink-700 dark:stroke-ink-300"
+      />
+      <text
+        x="120"
+        y="272"
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="600"
+        letterSpacing="1.5"
+        className="fill-ink-500 dark:fill-ink-400"
+      >
+        CharityTooling.com
+      </text>
+    </svg>
   );
 }
 
@@ -151,11 +233,11 @@ function Standard() {
           <div>
             <p
               aria-hidden="true"
-              className="text-7xl sm:text-8xl font-bold tracking-tight text-accent leading-none"
+              className="text-center text-7xl sm:text-8xl font-bold tracking-tight text-accent leading-none"
             >
-              95%
+              95%+
             </p>
-            <p className="mt-3 text-base sm:text-lg font-medium text-ink-700 dark:text-ink-200">
+            <p className="mt-3 text-center text-base sm:text-lg font-medium text-ink-700 dark:text-ink-200">
               of every dollar to programs
             </p>
             <p className="mt-6 text-sm text-ink-500 dark:text-ink-400 leading-relaxed">
@@ -196,7 +278,7 @@ function WhatItDoes() {
   return (
     <section className="mx-auto max-w-3xl px-4 sm:px-6 py-14 sm:py-20">
       <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-        What CharityTooling is, in plain language
+        What is CharityTooling?
       </h2>
       <ul className="mt-8 space-y-4">
         {DONOR_BULLETS.map((line) => (
@@ -331,7 +413,7 @@ function Footer() {
   return (
     <footer className="border-t border-ink-100 dark:border-ink-800">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 grid gap-4 sm:grid-cols-3 sm:items-center text-sm text-ink-500 dark:text-ink-400">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-2 sm:justify-start">
           <img src="/icon.svg" alt="" className="h-5 w-5" />
           <span>CharityTooling</span>
         </div>
@@ -341,7 +423,7 @@ function Footer() {
             Sign in
           </Link>
         </div>
-        <div className="flex gap-4 sm:justify-end">
+        <div className="flex justify-center gap-4 sm:justify-end">
           <a href={CONTACT_MAILTO} className="hover:text-accent">
             Contact
           </a>

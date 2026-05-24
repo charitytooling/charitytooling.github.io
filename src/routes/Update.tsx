@@ -409,27 +409,21 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
         <div className="mt-1 h-1.5 bg-ink-100 dark:bg-ink-800 rounded-full overflow-hidden">
           <div className="h-full bg-accent" style={{ width: `${customer.completeness_score}%` }} />
         </div>
-        <div className="space-y-2 mt-3 text-xs">
-          <div className="flex flex-wrap justify-center gap-2">
-            <ResearchLink label="ProPublica" href={propublicaUrl(customer)} />
-            <ResearchLink label="IRS TEOS" href={irsTeosUrl(customer)} />
-            <ResearchLink label="Candid" href={candidUrl(customer)} />
-            <ResearchLink label="Cause IQ" href={causeIqUrl(customer)} />
-            <ResearchLink label="Charity Navigator" href={charityNavigatorUrl(customer)} />
-          </div>
-          <div className="flex flex-wrap justify-center gap-2">
-            <ResearchLink label="Maps" href={googleMapsUrl(customer)} />
-            <ResearchLink label="Bizapedia" href={bizapediaUrl(customer)} />
-          </div>
-          <div className="flex flex-wrap justify-center gap-2">
-            <ResearchLink label="LinkedIn (Co)" href={linkedInCompanyUrl(customer)} />
-            <ResearchLink label="LinkedIn" href={linkedInPeopleUrl(customer)} />
-            <ResearchLink label="Google" href={googleUrl(customer)} />
-            <ResearchLink label="Google News" href={googleNewsUrl(customer)} />
-            <ResearchLink label="Facebook" href={facebookUrl(customer)} />
-            <ResearchLink label="X" href={xUrl(customer)} />
-            <ResearchLink label="YouTube" href={youtubeUrl(customer)} />
-          </div>
+        <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+          <ResearchLink label="ProPublica" href={propublicaUrl(customer)} />
+          <ResearchLink label="IRS TEOS" href={irsTeosUrl(customer)} />
+          <ResearchLink label="Candid" href={candidUrl(customer)} />
+          <ResearchLink label="Cause IQ" href={causeIqUrl(customer)} />
+          <ResearchLink label="Charity Navigator" href={charityNavigatorUrl(customer)} />
+          <ResearchLink label="Maps" href={googleMapsUrl(customer)} />
+          <ResearchLink label="Bizapedia" href={bizapediaUrl(customer)} />
+          <ResearchLink label="LinkedIn (Co)" href={linkedInCompanyUrl(customer)} />
+          <ResearchLink label="LinkedIn" href={linkedInPeopleUrl(customer)} />
+          <ResearchLink label="Google" href={googleUrl(customer)} />
+          <ResearchLink label="Google News" href={googleNewsUrl(customer)} />
+          <ResearchLink label="Facebook" href={facebookUrl(customer)} />
+          <ResearchLink label="X" href={xUrl(customer)} />
+          <ResearchLink label="YouTube" href={youtubeUrl(customer)} />
         </div>
       </header>
 
@@ -522,8 +516,7 @@ export function ContactsSection({ customer }: { customer: CustomerRow }) {
         <div>
           <h2 className="font-semibold">People ({contacts.length})</h2>
           <p className="text-xs text-ink-500 dark:text-ink-400">
-            One person on file per row. The primary contact powers the Call button and the default
-            email recipient.
+            Primary contact powers the Call button and the default email recipient.
           </p>
         </div>
         <button
@@ -821,97 +814,102 @@ function CustomFieldsSection({ customer }: { customer: CustomerRow }) {
   const defs = defsQuery.data ?? [];
 
   return (
-    <section className="card space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="font-semibold">Custom fields ({defs.length})</h2>
-          <p className="text-xs text-ink-500 dark:text-ink-400">
-            Charity-wide. Any member can add a field; every other member sees it on every customer.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn-ghost text-sm shrink-0"
-          onClick={() => {
-            setAdding((v) => !v);
-            setAddError(null);
-          }}
-        >
-          {adding ? 'Cancel' : '+ Add field'}
-        </button>
-      </div>
-
-      {defs.length === 0 && !adding && (
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          No custom fields yet. Click "+ Add field" to create one.
+    <section className="card">
+      <details>
+        <summary className="cursor-pointer select-none font-semibold">
+          Custom fields ({defs.length})
+        </summary>
+        <p className="text-xs text-ink-500 dark:text-ink-400 mt-1">
+          Charity-wide. Any member can add a field; every other member sees it on every customer.
         </p>
-      )}
 
-      <div className="space-y-3">
-        {defs.map((def) => (
-          <CustomerFieldInput<string>
-            key={def.id}
-            field={{
-              key: def.id,
-              label: def.label,
-              type: defKindToFieldType(def.kind),
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            className="btn-ghost text-sm"
+            onClick={() => {
+              setAdding((v) => !v);
+              setAddError(null);
             }}
-            value={valueForInput(def.kind, getStoredValue(def.id))}
-            onChange={(_key, next) => scheduleSave(def.id, valueForStorage(def.kind, next))}
-          />
-        ))}
-      </div>
-
-      {adding && (
-        <div className="space-y-2 pt-2 border-t border-ink-100 dark:border-ink-800">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-2">
-              <label className="label">Field name</label>
-              <input
-                className="field"
-                value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
-                placeholder="e.g. Twitter handle"
-                autoFocus
-              />
-            </div>
-            <div>
-              <label className="label">Kind</label>
-              <select
-                className="field"
-                value={newKind}
-                onChange={(e) => setNewKind(e.target.value as CustomerFieldKind)}
-              >
-                {CUSTOM_FIELD_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {kindLabel(k)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            {addError && <p className="text-sm text-red-600 mr-auto">{addError}</p>}
-            <button
-              type="button"
-              className="btn-primary text-sm"
-              onClick={onAddDef}
-              disabled={createDef.isPending || !newLabel.trim()}
-            >
-              {createDef.isPending ? 'Adding...' : 'Add field'}
-            </button>
-          </div>
+          >
+            {adding ? 'Cancel' : '+ Add field'}
+          </button>
         </div>
-      )}
 
-      <ManageCustomFields charityId={customer.charity_id} hasDefs={defs.length > 0} />
+        {defs.length === 0 && !adding && (
+          <p className="text-sm text-ink-500 dark:text-ink-400 mt-2">
+            No custom fields yet. Click "+ Add field" to create one.
+          </p>
+        )}
 
-      <p className="text-xs text-ink-500 dark:text-ink-400 px-1">
-        {status === 'saving' && 'Saving...'}
-        {status === 'saved' && 'Saved'}
-        {status === 'error' && <span className="text-red-600">Save failed - try again.</span>}
-        {status === 'idle' && '\u00a0'}
-      </p>
+        <div className="space-y-3 mt-3">
+          {defs.map((def) => (
+            <CustomerFieldInput<string>
+              key={def.id}
+              field={{
+                key: def.id,
+                label: def.label,
+                type: defKindToFieldType(def.kind),
+              }}
+              value={valueForInput(def.kind, getStoredValue(def.id))}
+              onChange={(_key, next) => scheduleSave(def.id, valueForStorage(def.kind, next))}
+            />
+          ))}
+        </div>
+
+        {adding && (
+          <div className="space-y-2 pt-2 mt-3 border-t border-ink-100 dark:border-ink-800">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <label className="label">Field name</label>
+                <input
+                  className="field"
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  placeholder="e.g. Twitter handle"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="label">Kind</label>
+                <select
+                  className="field"
+                  value={newKind}
+                  onChange={(e) => setNewKind(e.target.value as CustomerFieldKind)}
+                >
+                  {CUSTOM_FIELD_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {kindLabel(k)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              {addError && <p className="text-sm text-red-600 mr-auto">{addError}</p>}
+              <button
+                type="button"
+                className="btn-primary text-sm"
+                onClick={onAddDef}
+                disabled={createDef.isPending || !newLabel.trim()}
+              >
+                {createDef.isPending ? 'Adding...' : 'Add field'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3">
+          <ManageCustomFields charityId={customer.charity_id} hasDefs={defs.length > 0} />
+        </div>
+
+        <p className="text-xs text-ink-500 dark:text-ink-400 px-1 mt-3">
+          {status === 'saving' && 'Saving...'}
+          {status === 'saved' && 'Saved'}
+          {status === 'error' && <span className="text-red-600">Save failed - try again.</span>}
+          {status === 'idle' && '\u00a0'}
+        </p>
+      </details>
     </section>
   );
 }
