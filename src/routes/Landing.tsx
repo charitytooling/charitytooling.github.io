@@ -135,7 +135,7 @@ function ReceiptIllustration() {
         strokeLinejoin="round"
         className="stroke-accent"
       />
-      <circle cx="120" cy="195" r="7" className="fill-accent" />
+      <circle cx="120" cy="192" r="9" className="fill-accent" />
       <path
         d="M55 248 q10 -12 25 0 t25 0 t25 0 t25 0 t25 0"
         fill="none"
