@@ -31,6 +31,7 @@ import { ContactNav } from './contact/ContactNav';
 import { CompanyOverview } from './contact/CompanyOverview';
 import { CallScriptModal } from './contact/CallScriptModal';
 import { FaqModal } from './contact/FaqModal';
+import { ArchiveWithNoteModal } from './contact/ArchiveWithNoteModal';
 
 export function ContactPage() {
   const { id } = useParams<{ id?: string }>();
@@ -52,6 +53,11 @@ export function ContactPage() {
   const [newFollowUpOpen, setNewFollowUpOpen] = useState(false);
   const [scriptOpen, setScriptOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
+  const [archiveNoteOpen, setArchiveNoteOpen] = useState(false);
+  // Pulled at the top level so it stays in the same hook-call order across
+  // renders (customer.data and the early returns below depend on it). The
+  // hook tolerates a null charityId by short-circuiting to an empty queue.
+  const queue = useContactQueue(customer.data?.charity_id ?? null);
 
   // The hook signature requires an id, but the buttons that call its
   // mutations only render once we have customer.data. Empty-string sentinel
@@ -157,10 +163,21 @@ export function ContactPage() {
           )}
         </div>
         <CompanyOverview customer={c} />
-        <div className="text-xs text-ink-400 dark:text-ink-500 mt-3">
-          {c.last_contacted_at
-            ? `Last contacted ${new Date(c.last_contacted_at).toLocaleDateString()} (${relativeDays(c.last_contacted_at)})`
-            : 'Never contacted'}
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="text-xs text-ink-400 dark:text-ink-500 min-w-0 truncate">
+            {c.last_contacted_at
+              ? `Last contacted ${new Date(c.last_contacted_at).toLocaleDateString()} (${relativeDays(c.last_contacted_at)})`
+              : 'Never contacted'}
+          </div>
+          {!isArchived && (
+            <button
+              type="button"
+              onClick={() => setArchiveNoteOpen(true)}
+              className="text-xs text-accent hover:underline shrink-0"
+            >
+              Archive & leave note
+            </button>
+          )}
         </div>
       </header>
 
@@ -327,6 +344,27 @@ export function ContactPage() {
 
       {faqOpen && !isArchived && (
         <FaqModal charityId={c.charity_id} onClose={() => setFaqOpen(false)} />
+      )}
+
+      {archiveNoteOpen && !isArchived && (
+        <ArchiveWithNoteModal
+          customer={c}
+          onClose={() => setArchiveNoteOpen(false)}
+          onArchived={() => {
+            // Capture the next queue id BEFORE invalidations land so we
+            // can hand the user straight to the next customer instead of
+            // bouncing through the /contact landing redirect. The queue
+            // value at this moment still includes c (archive only just
+            // resolved); use indexOf+1 the same way ContactNav does.
+            const idx = queue.findIndex((q) => q.id === c.id);
+            const nextId =
+              idx !== -1 && idx < queue.length - 1 ? queue[idx + 1].id : null;
+            setArchiveNoteOpen(false);
+            setSticky(null);
+            if (nextId) navigate(`/contact/${nextId}`);
+            else navigate('/contact');
+          }}
+        />
       )}
     </div>
   );

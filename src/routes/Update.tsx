@@ -51,6 +51,7 @@ import {
 } from '@/state/customFields';
 import { useSetStickyCustomer, useStickyCustomer } from '@/state/stickyCustomer';
 import { compactMoney, formatWholeUSD } from '@/lib/format';
+import { useDebouncedSave } from '@/lib/useDebouncedSave';
 import { VisitStopwatch } from '@/components/VisitStopwatch';
 
 export function UpdatePage() {
@@ -342,8 +343,12 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
   const update = useUpdateCustomer(customer.id);
   const archive = useArchiveCustomer(customer.id);
   const [draft, setDraft] = useState<Partial<CustomerRow>>({});
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const saveTimer = useRef<number | null>(null);
+  const debounced = useDebouncedSave<{
+    key: keyof CustomerRow;
+    value: CustomerRow[keyof CustomerRow];
+  }>(async ({ key, value }) => {
+    await update.mutateAsync({ [key]: value } as Partial<CustomerRow>);
+  });
   const [params, setParams] = useSearchParams();
 
   async function onArchive() {
@@ -356,11 +361,16 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
     }
   }
 
-  // Reset draft when we move to a new customer.
+  // Reset draft when we move to a new customer. The debounced helper's
+  // own unmount cleanup flushes any pending write before this fires
+  // (UpdateForm itself doesn't unmount on customer change; only the row
+  // editor flush is at risk). The setIdle call resets the status footer
+  // so the new customer starts on a clean "(idle)" indicator instead of
+  // inheriting the previous customer's "Saved".
   useEffect(() => {
     setDraft({});
-    setStatus('idle');
-  }, [customer.id]);
+    debounced.setIdle();
+  }, [customer.id, debounced]);
 
   // Cross-route deep-link target from the ledger completeness modal:
   // /contact/<id>?focus=field-<key>. Scroll the matching input into view and
@@ -387,16 +397,7 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
 
   function setField<K extends keyof CustomerRow>(key: K, value: CustomerRow[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
-    setStatus('saving');
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(async () => {
-      try {
-        await update.mutateAsync({ [key]: value } as Partial<CustomerRow>);
-        setStatus('saved');
-      } catch {
-        setStatus('error');
-      }
-    }, 600);
+    debounced.schedule({ key, value });
   }
 
   const currentValue = useMemo(
@@ -482,10 +483,10 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
       </section>
 
       <p className="text-xs text-ink-500 dark:text-ink-400 px-1">
-        {status === 'saving' && 'Saving...'}
-        {status === 'saved' && 'Saved'}
-        {status === 'error' && <span className="text-red-600">Save failed - try again.</span>}
-        {status === 'idle' && '\u00a0'}
+        {debounced.status === 'saving' && 'Saving...'}
+        {debounced.status === 'saved' && 'Saved'}
+        {debounced.status === 'error' && <span className="text-red-600">Save failed - try again.</span>}
+        {debounced.status === 'idle' && '\u00a0'}
       </p>
 
       <div className="grid grid-cols-2 gap-2">
@@ -599,32 +600,28 @@ function ContactEditor({ contact }: { contact: CustomerContactRow }) {
   const setPrimary = useSetPrimaryContact();
 
   const [draft, setDraft] = useState<Partial<CustomerContactRow>>({});
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const saveTimer = useRef<number | null>(null);
+  const debounced = useDebouncedSave<{ key: ContactField; value: string | null }>(
+    async ({ key, value }) => {
+      await update.mutateAsync({
+        id: contact.id,
+        customer_id: contact.customer_id,
+        patch: { [key]: value } as Partial<CustomerContactRow>,
+      });
+    },
+  );
 
   useEffect(() => {
     // Drop the local draft when the underlying row changes (e.g. after the
-    // 600ms autosave round-trip returns the updated row from the cache).
+    // autosave round-trip returns the updated row from the cache). The
+    // helper's own unmount-flush handles the navigate-away case; this
+    // effect only resets UI state on a confirmed save.
     setDraft({});
-    setStatus('idle');
-  }, [contact.id, contact.updated_at]);
+    debounced.setIdle();
+  }, [contact.id, contact.updated_at, debounced]);
 
   function setField(key: ContactField, value: string | null) {
     setDraft((d) => ({ ...d, [key]: value }));
-    setStatus('saving');
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(async () => {
-      try {
-        await update.mutateAsync({
-          id: contact.id,
-          customer_id: contact.customer_id,
-          patch: { [key]: value } as Partial<CustomerContactRow>,
-        });
-        setStatus('saved');
-      } catch {
-        setStatus('error');
-      }
-    }, 600);
+    debounced.schedule({ key, value });
   }
 
   function val(key: ContactField): string {
@@ -669,9 +666,9 @@ function ContactEditor({ contact }: { contact: CustomerContactRow }) {
           </button>
         )}
         <span className="text-xs text-ink-400 dark:text-ink-500 ml-auto">
-          {status === 'saving' && 'Saving...'}
-          {status === 'saved' && 'Saved'}
-          {status === 'error' && <span className="text-red-600">Save failed</span>}
+          {debounced.status === 'saving' && 'Saving...'}
+          {debounced.status === 'saved' && 'Saved'}
+          {debounced.status === 'error' && <span className="text-red-600">Save failed</span>}
         </span>
         <button
           type="button"
@@ -792,10 +789,24 @@ function CustomFieldsSection({ customer }: { customer: CustomerRow }) {
   const upsertValue = useUpsertFieldValue();
   const createDef = useCreateFieldDef();
 
-  // Per-def local draft so the input doesn't lag while the 600ms debounce ticks.
+  // Per-def local draft so the input doesn't lag while the 1s debounce ticks.
   const [draft, setDraft] = useState<Record<string, string | null>>({});
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const timers = useRef<Record<string, number>>({});
+  // Mirror of `timers`, holding the latest queued value per defId. Drained
+  // by the customer-change / unmount cleanup so a 1s debounce window can
+  // never lose the last keystroke if the user clicks "Save & next" or
+  // navigates away. Custom fields use this hand-rolled pattern (rather
+  // than the useDebouncedSave helper) because each defId is debounced
+  // independently and the helper is single-payload by design.
+  const pendingRef = useRef<Record<string, string | null>>({});
+  // Stable ref to the upsert mutation so the cleanup effect can flush
+  // without making `upsertValue` (a new object identity per render) a
+  // dep of the effect.
+  const upsertRef = useRef(upsertValue);
+  useEffect(() => {
+    upsertRef.current = upsertValue;
+  });
 
   // Inline + Add field composer
   const [adding, setAdding] = useState(false);
@@ -803,21 +814,35 @@ function CustomFieldsSection({ customer }: { customer: CustomerRow }) {
   const [newKind, setNewKind] = useState<CustomerFieldKind>('text');
   const [addError, setAddError] = useState<string | null>(null);
 
-  // Reset when switching customers.
+  // Single effect that (a) resets local state when the customer changes
+  // or the section mounts, and (b) flushes pending writes on unmount /
+  // before the next customer's reset via its cleanup. The cleanup
+  // captures `currentCustomerId` from this render's closure, so pending
+  // writes always reach the server tagged with the customer they were
+  // typed against - even mid-customer-switch.
   useEffect(() => {
     setDraft({});
     setStatus('idle');
-    for (const id of Object.values(timers.current)) window.clearTimeout(id);
     timers.current = {};
-  }, [customer.id]);
+    pendingRef.current = {};
 
-  // Cancel any pending writes when the section unmounts.
-  useEffect(() => {
+    const currentCustomerId = customer.id;
     return () => {
-      for (const id of Object.values(timers.current)) window.clearTimeout(id);
+      for (const id of Object.values(timers.current)) {
+        window.clearTimeout(id);
+      }
+      const pending = pendingRef.current;
       timers.current = {};
+      pendingRef.current = {};
+      for (const [defId, value] of Object.entries(pending)) {
+        upsertRef.current.mutate({
+          customer_id: currentCustomerId,
+          field_def_id: defId,
+          value,
+        });
+      }
     };
-  }, []);
+  }, [customer.id]);
 
   function getStoredValue(defId: string): string | null {
     if (defId in draft) return draft[defId];
@@ -827,9 +852,12 @@ function CustomFieldsSection({ customer }: { customer: CustomerRow }) {
   function scheduleSave(defId: string, nextStored: string | null) {
     setDraft((d) => ({ ...d, [defId]: nextStored }));
     setStatus('saving');
+    pendingRef.current[defId] = nextStored;
     const existing = timers.current[defId];
     if (existing) window.clearTimeout(existing);
     timers.current[defId] = window.setTimeout(async () => {
+      delete timers.current[defId];
+      delete pendingRef.current[defId];
       try {
         await upsertValue.mutateAsync({
           customer_id: customer.id,
@@ -840,7 +868,7 @@ function CustomFieldsSection({ customer }: { customer: CustomerRow }) {
       } catch {
         setStatus('error');
       }
-    }, 600);
+    }, 1000);
   }
 
   async function onAddDef() {
@@ -1032,7 +1060,10 @@ function ManageCustomFieldRow({
   busy: boolean;
 }) {
   const [label, setLabel] = useState(def.label);
-  const renameTimer = useRef<number | null>(null);
+  const debounced = useDebouncedSave<string>(async (next) => {
+    const trimmed = next.trim();
+    if (trimmed && trimmed !== def.label) onRename(trimmed);
+  });
 
   useEffect(() => {
     setLabel(def.label);
@@ -1040,11 +1071,7 @@ function ManageCustomFieldRow({
 
   function onChangeLabel(next: string) {
     setLabel(next);
-    if (renameTimer.current) window.clearTimeout(renameTimer.current);
-    renameTimer.current = window.setTimeout(() => {
-      const trimmed = next.trim();
-      if (trimmed && trimmed !== def.label) onRename(trimmed);
-    }, 600);
+    debounced.schedule(next);
   }
 
   return (
