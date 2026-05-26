@@ -162,6 +162,30 @@ export function sortedContacts(c: Pick<CustomerRow, 'customer_contacts'> | null 
   });
 }
 
+/**
+ * True iff a contact row has at least one piece of rep-actionable information
+ * (name, email, phone, or note). Used by the Contact page to hide fully-empty
+ * placeholder rows from the People card so the count and list don't surface
+ * '(1)' / '(unnamed)' for nothing. Underlying rows are not touched -- this is
+ * a display-only filter, so primaryContact / DonationModal pickers / etc.
+ * still see the full set.
+ */
+export function hasAnyInfo(c: {
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  note?: string | null;
+}): boolean {
+  return !!(
+    c.first_name?.trim() ||
+    c.last_name?.trim() ||
+    c.email?.trim() ||
+    c.phone?.trim() ||
+    c.note?.trim()
+  );
+}
+
 export function displayName(
   c:
     | ({ display_name: string | null } & { customer_contacts?: DisplayContactShape[] })

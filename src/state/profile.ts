@@ -68,3 +68,15 @@ export function useIsAnyCharityAdmin(): boolean {
   if (isSuper) return true;
   return (data ?? []).some((m) => m.role === 'admin');
 }
+
+// True iff the caller is super admin OR a charity admin of the specific
+// charity. Mirrors private.is_admin_of(charity_id) on the server, used by
+// UI gates that need to match the same RLS predicate (e.g. the Delete
+// button on notes outside the 24h author window).
+export function useIsCharityAdmin(charityId: string | null | undefined): boolean {
+  const isSuper = useIsSuperAdmin();
+  const { data } = useMyMemberships();
+  if (isSuper) return true;
+  if (!charityId) return false;
+  return (data ?? []).some((m) => m.charity_id === charityId && m.role === 'admin');
+}

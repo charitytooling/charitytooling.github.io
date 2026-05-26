@@ -11,7 +11,9 @@ import {
 } from '@/state/customers';
 import { useIsSuperAdmin } from '@/state/profile';
 import { useLongPress } from '@/lib/useLongPress';
-import { AddCustomerModal, Modal } from './ledger/AddCustomerModal';
+import { CompletenessDisclosure } from '@/components/CompletenessDisclosure';
+import { Modal } from '@/components/Modal';
+import { AddCustomerModal } from './ledger/AddCustomerModal';
 import { CsvImportModal } from './ledger/CsvImportModal';
 
 export function LedgerPage() {
@@ -227,34 +229,37 @@ function CustomerRowItem({
   });
 
   return (
-    <Link
-      to={`/contact/${customer.id}`}
+    <div
       {...longPress}
       style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
       className={[
-        'block py-3 border-b border-ink-100 dark:border-ink-800 active:bg-ink-100/60',
+        'flex items-center justify-between gap-3 py-3 border-b border-ink-100 dark:border-ink-800',
         isArchived ? 'opacity-60' : '',
         isDeleting ? 'opacity-40 pointer-events-none' : '',
       ].join(' ')}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-medium truncate">{displayName(customer)}</span>
-            {isArchived && (
-              <span className="shrink-0 text-[10px] uppercase tracking-wide bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-2 py-0.5 rounded-full">
-                Archived
-              </span>
-            )}
-          </div>
-          <div className="text-xs text-ink-500 dark:text-ink-400 truncate">
-            {[primary?.email, primary?.phone].filter(Boolean).join(' - ')}
-          </div>
+      <Link
+        to={`/contact/${customer.id}`}
+        className="min-w-0 flex-1 active:bg-ink-100/60 dark:active:bg-ink-800/60 -my-3 py-3"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium truncate">{displayName(customer)}</span>
+          {isArchived && (
+            <span className="shrink-0 text-[10px] uppercase tracking-wide bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-2 py-0.5 rounded-full">
+              Archived
+            </span>
+          )}
         </div>
-        <div className="text-xs text-ink-400 dark:text-ink-500 shrink-0">
-          {customer.completeness_score}%
+        <div className="text-xs text-ink-500 dark:text-ink-400 truncate">
+          {[primary?.email, primary?.phone].filter(Boolean).join(' - ')}
         </div>
-      </div>
-    </Link>
+      </Link>
+      <CompletenessDisclosure
+        customer={customer}
+        primary={primary}
+        variant="modal"
+        customerId={customer.id}
+      />
+    </div>
   );
 }

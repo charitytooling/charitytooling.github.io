@@ -114,9 +114,6 @@ export function SettingsPage() {
       <section className="card space-y-3">
         <div>
           <h2 className="font-semibold">Appearance</h2>
-          <p className="text-xs text-ink-500 dark:text-ink-400">
-            Match your system preference, or pick a fixed theme.
-          </p>
         </div>
         <ThemeToggle />
       </section>

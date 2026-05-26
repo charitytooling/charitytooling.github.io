@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Modal } from './AddCustomerModal';
+import { Modal } from '@/components/Modal';
 
 interface ParsedRow {
   display_name: string | null;

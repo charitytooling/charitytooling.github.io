@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
+import { BrandMark } from '@/components/BrandMark';
 import { supabase } from '@/lib/supabase';
 
 export function SignIn() {
@@ -68,7 +69,7 @@ export function SignIn() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-ink-50 dark:bg-ink-950 px-6 safe-top safe-bottom">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <img src="/icon.svg" alt="" className="mx-auto h-16 w-16" />
+          <BrandMark className="mx-auto h-16 w-16 text-accent" />
           <h1 className="mt-4 text-2xl font-semibold">CharityTooling</h1>
           <p className="text-ink-500 dark:text-ink-400 text-sm">Sign in to continue</p>
         </div>

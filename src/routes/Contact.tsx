@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   displayName,
+  hasAnyInfo,
   primaryContact,
   sortedContacts,
   useCustomer,
@@ -15,7 +16,8 @@ import {
   useDeleteContact,
   useSetPrimaryContact,
 } from '@/state/contacts';
-import { useIsSuperAdmin, useProfile } from '@/state/profile';
+import { useIsCharityAdmin, useIsSuperAdmin, useProfile } from '@/state/profile';
+import { useAuth } from '@/auth/AuthProvider';
 import { useContactQueue } from '@/state/queue';
 import { useActiveCharity } from '@/state/activeCharity';
 import { useSetStickyCustomer, useStickyCustomer } from '@/state/stickyCustomer';
@@ -37,6 +39,12 @@ export function ContactPage() {
   const followUps = useFollowUps(id);
   const createNote = useCreateNote();
   const isSuper = useIsSuperAdmin();
+  const { user } = useAuth();
+  // Pulled before any early return so the hook order stays stable while
+  // customer.data is undefined. useIsCharityAdmin tolerates a null
+  // charityId (returns false for non-supers) so this is safe to call
+  // before customer.data resolves.
+  const isCharityAdmin = useIsCharityAdmin(customer.data?.charity_id ?? null);
   const navigate = useNavigate();
   const setSticky = useSetStickyCustomer();
   const [composerOpen, setComposerOpen] = useState(false);
@@ -84,7 +92,11 @@ export function ContactPage() {
   const primary = primaryContact(c);
   const primaryEmail = primary?.email ?? null;
   const primaryPhone = primary?.phone ?? null;
-  const allContacts = sortedContacts(c);
+  // Hide fully-empty placeholder contacts (no name, email, phone, or note) so
+  // the People card doesn't surface '(1)' / '(unnamed)' for nothing. The DB
+  // rows are untouched -- this is display-only, so primaryContact() and the
+  // donation-flow contact picker still see the full set.
+  const allContacts = sortedContacts(c).filter(hasAnyInfo);
   const followUpList = followUps.data ?? [];
   // Hide the Follow-ups card when there is nothing to show, unless the user
   // is actively opening a brand-new follow-up via the shortcut next to the
@@ -261,7 +273,32 @@ export function ContactPage() {
 
       <section className="card space-y-3">
         <h2 className="font-semibold">History ({(notes.data ?? []).length})</h2>
-        <NoteList notes={notes.data ?? []} loading={notes.isLoading} />
+        {notes.isError ? (
+          // Surface load failures inline so silent regressions like the
+          // PGRST200 embed bug (notes_created_by_profile_fkey) are obvious
+          // instead of looking like an empty list.
+          <p className="text-sm text-red-600">
+            Could not load notes.{' '}
+            <button
+              type="button"
+              className="text-accent underline"
+              onClick={() => notes.refetch()}
+            >
+              Retry
+            </button>
+            <span className="ml-2 text-xs text-ink-500 dark:text-ink-400">
+              ({(notes.error as Error)?.message ?? 'unknown error'})
+            </span>
+          </p>
+        ) : (
+          <NoteList
+            notes={notes.data ?? []}
+            loading={notes.isLoading}
+            userId={user?.id ?? null}
+            isAdmin={isCharityAdmin}
+            customerId={c.id}
+          />
+        )}
       </section>
 
       <ContactNav currentId={c.id} charityId={c.charity_id} />

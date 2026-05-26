@@ -1,8 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
 
-export type NoteRow = Database['public']['Tables']['notes']['Row'];
+// NoteRow includes the embedded author profile so NoteList can render the
+// email local-part next to each note. The join is notes.created_by ->
+// profiles.id via the additive FK `notes_created_by_profile_fkey` in
+// 20260530020000_notes_created_by_profile_fk.sql. The original
+// `notes_created_by_fkey` references auth.users(id) (init migration), not
+// profiles, so PostgREST cannot embed through it -- which is why we hint
+// the new constraint name explicitly. Cross-member visibility is granted
+// by the "members read profiles of co-members" RLS policy in
+// 20260530010000_notes_author.sql.
+export type NoteAuthor = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'email'>;
+export type NoteRow = Database['public']['Tables']['notes']['Row'] & {
+  author: NoteAuthor | null;
+};
 export type FollowUpRow = Database['public']['Tables']['follow_ups']['Row'];
 
 export function useNotes(customerId: string | undefined) {
@@ -12,20 +25,29 @@ export function useNotes(customerId: string | undefined) {
     queryFn: async (): Promise<NoteRow[]> => {
       const { data, error } = await supabase
         .from('notes')
-        .select('*')
+        .select('*, author:profiles!notes_created_by_profile_fkey(id, email)')
         .eq('customer_id', customerId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as NoteRow[];
     },
   });
 }
 
 export function useCreateNote() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (input: Database['public']['Tables']['notes']['Insert']) => {
-      const { data, error } = await supabase.from('notes').insert(input).select().single();
+      // Stamp created_by client-side as a belt-and-suspenders alongside
+      // the notes_set_created_by trigger. Stamping here populates the
+      // returned row so the optimistic UI render has the author available
+      // without an extra refetch.
+      const payload = {
+        ...input,
+        created_by: input.created_by ?? user?.id ?? null,
+      };
+      const { data, error } = await supabase.from('notes').insert(payload).select().single();
       if (error) throw error;
       // Stamp last_contacted_at on the customer for any "contact" kind.
       if (['call', 'email', 'meeting'].includes(input.kind)) {
@@ -37,6 +59,49 @@ export function useCreateNote() {
       return data;
     },
     onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['notes', vars.customer_id] });
+      qc.invalidateQueries({ queryKey: ['customer', vars.customer_id] });
+    },
+  });
+}
+
+// Edit a note's body. Server enforces author + within-24h via the
+// "author edits own note within 24h" RLS policy and the
+// notes_block_immutable_fields trigger (kind / customer / author /
+// timestamps cannot move). We deliberately only send `body` so the client
+// can never even attempt to mutate other columns.
+export function useUpdateNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    // customer_id is part of the variables type so onSuccess can scope
+    // the cache invalidation, even though the SQL update only needs id +
+    // body. Reading via vars.* avoids destructuring an unused name.
+    mutationFn: async (vars: { id: string; customer_id: string; body: string }) => {
+      const { error } = await supabase
+        .from('notes')
+        .update({ body: vars.body })
+        .eq('id', vars.id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['notes', vars.customer_id] });
+    },
+  });
+}
+
+// Delete a note. Server enforces author-within-24h OR charity admin via
+// the "delete own within 24h or admin anytime" RLS policy. The client
+// shows the Delete button only when the same predicate is satisfied UI-
+// side; if the 24h window slips between render and click, RLS denies and
+// the caller surfaces the error.
+export function useDeleteNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { id: string; customer_id: string }) => {
+      const { error } = await supabase.from('notes').delete().eq('id', vars.id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['notes', vars.customer_id] });
       qc.invalidateQueries({ queryKey: ['customer', vars.customer_id] });
     },

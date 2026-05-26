@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useActiveCharity } from '@/state/activeCharity';
 import {
   displayName,
+  primaryContact,
   sortedContacts,
   useArchiveCustomer,
   useCustomer,
@@ -12,6 +13,7 @@ import {
   type CustomerContactRow,
   type CustomerRow,
 } from '@/state/customers';
+import { CompletenessDisclosure } from '@/components/CompletenessDisclosure';
 import {
   bizapediaUrl,
   candidUrl,
@@ -289,8 +291,9 @@ export function CustomerFieldInput<K extends string = keyof CustomerRow & string
   if (field.type === 'select') {
     return (
       <div>
-        <label className="label">{field.label}</label>
+        <label className="label" htmlFor={`field-${field.key}`}>{field.label}</label>
         <select
+          id={`field-${field.key}`}
           className="field"
           disabled={disabled}
           value={(value as string | null) ?? ''}
@@ -320,8 +323,9 @@ export function CustomerFieldInput<K extends string = keyof CustomerRow & string
   }
   return (
     <div>
-      <label className="label">{field.label}</label>
+      <label className="label" htmlFor={`field-${field.key}`}>{field.label}</label>
       <input
+        id={`field-${field.key}`}
         className="field"
         type={field.type ?? 'text'}
         inputMode={field.type === 'number' ? 'numeric' : undefined}
@@ -340,6 +344,7 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
   const [draft, setDraft] = useState<Partial<CustomerRow>>({});
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const saveTimer = useRef<number | null>(null);
+  const [params, setParams] = useSearchParams();
 
   async function onArchive() {
     if (!confirm(`Archive ${displayName(customer)}? Hidden from the ledger but kept for audit; restore from Ledger later.`)) return;
@@ -356,6 +361,29 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
     setDraft({});
     setStatus('idle');
   }, [customer.id]);
+
+  // Cross-route deep-link target from the ledger completeness modal:
+  // /contact/<id>?focus=field-<key>. Scroll the matching input into view and
+  // focus it. Depends on `customer` so the effect re-runs after
+  // `ContactsSection` seeds a missing primary contact and the customer query
+  // updates with the new id="field-first_name" inputs. The param is only
+  // cleared once we actually find and act on the element, so transient races
+  // (DOM not yet mounted) just wait for the next render.
+  useEffect(() => {
+    const target = params.get('focus');
+    if (!target) return;
+    const el = document.getElementById(target);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => {
+      if (typeof (el as HTMLElement).focus === 'function') {
+        (el as HTMLElement).focus({ preventScroll: true });
+      }
+    }, 250);
+    const next = new URLSearchParams(params);
+    next.delete('focus');
+    setParams(next, { replace: true });
+  }, [params, setParams, customer]);
 
   function setField<K extends keyof CustomerRow>(key: K, value: CustomerRow[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -393,7 +421,11 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-semibold truncate">{displayName(customer)}</h1>
           <div className="flex items-center gap-3 shrink-0">
-            <span className="text-xs font-medium text-ink-500 dark:text-ink-400">{customer.completeness_score}% complete</span>
+            <CompletenessDisclosure
+              customer={customer}
+              primary={primaryContact(customer)}
+              variant="inline"
+            />
             {!customer.archived_at && (
               <button
                 type="button"
@@ -495,6 +527,25 @@ export function ContactsSection({ customer }: { customer: CustomerRow }) {
   const create = useCreateContact();
   const [addError, setAddError] = useState<string | null>(null);
 
+  // Auto-ensure a primary contact exists so the editor (and the
+  // `id="field-first_name"` etc. inputs the completeness disclosure scrolls
+  // to) are always mounted. Guarded by a ref so StrictMode double-mount,
+  // in-flight mutations, and stable customer ids don't double-fire.
+  const ensuredForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!customer.id) return;
+    if (contacts.length > 0) return;
+    if (ensuredForRef.current === customer.id) return;
+    if (create.isPending) return;
+    ensuredForRef.current = customer.id;
+    create.mutate({
+      customer_id: customer.id,
+      charity_id: customer.charity_id,
+      is_primary: true,
+      sort_order: 0,
+    });
+  }, [customer.id, customer.charity_id, contacts.length, create]);
+
   async function onAdd() {
     setAddError(null);
     try {
@@ -528,10 +579,6 @@ export function ContactsSection({ customer }: { customer: CustomerRow }) {
           {create.isPending ? 'Adding...' : '+ Add contact'}
         </button>
       </div>
-
-      {contacts.length === 0 && (
-        <p className="text-sm text-ink-500 dark:text-ink-400">No contacts yet. Add one to get started.</p>
-      )}
 
       <div className="space-y-3">
         {contacts.map((c) => (
@@ -639,16 +686,18 @@ function ContactEditor({ contact }: { contact: CustomerContactRow }) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="label">First name</label>
+          <label className="label" htmlFor={contact.is_primary ? 'field-first_name' : undefined}>First name</label>
           <input
+            id={contact.is_primary ? 'field-first_name' : undefined}
             className="field"
             value={val('first_name')}
             onChange={(e) => setField('first_name', e.target.value || null)}
           />
         </div>
         <div>
-          <label className="label">Last name</label>
+          <label className="label" htmlFor={contact.is_primary ? 'field-last_name' : undefined}>Last name</label>
           <input
+            id={contact.is_primary ? 'field-last_name' : undefined}
             className="field"
             value={val('last_name')}
             onChange={(e) => setField('last_name', e.target.value || null)}
@@ -657,8 +706,9 @@ function ContactEditor({ contact }: { contact: CustomerContactRow }) {
       </div>
 
       <div>
-        <label className="label">Email</label>
+        <label className="label" htmlFor={contact.is_primary ? 'field-email' : undefined}>Email</label>
         <input
+          id={contact.is_primary ? 'field-email' : undefined}
           className="field"
           type="email"
           value={val('email')}
@@ -667,8 +717,9 @@ function ContactEditor({ contact }: { contact: CustomerContactRow }) {
       </div>
 
       <div>
-        <label className="label">Phone</label>
+        <label className="label" htmlFor={contact.is_primary ? 'field-phone' : undefined}>Phone</label>
         <input
+          id={contact.is_primary ? 'field-phone' : undefined}
           className="field"
           type="tel"
           value={val('phone')}

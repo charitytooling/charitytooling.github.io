@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { useActiveCharity } from '@/state/activeCharity';
 import { useNextFollowUpDays } from '@/state/notes';
+import { BrandMark } from './BrandMark';
 import { CharitySwitcher } from './CharitySwitcher';
 
 export function TopBar() {
@@ -21,7 +22,7 @@ export function TopBar() {
               ].join(' ')
             }
           >
-            <img src="/icon.svg" alt="" className="h-7 w-7" />
+            <BrandMark className="h-7 w-7 text-accent" />
           </NavLink>
           <CharitySwitcher />
         </div>

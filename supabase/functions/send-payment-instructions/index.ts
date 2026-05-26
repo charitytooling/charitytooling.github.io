@@ -9,14 +9,21 @@
 // }
 //
 // Auth: caller must be a member of `charity_id`.
-// Action: pulls the charity's per-method payment fields, renders a canonical
-//   HTML email (the rep cannot edit the bank-detail block on send), pushes
-//   it through Resend, then writes email_log + a synthetic note (kind=email)
-//   so the action shows up on the contact's History card. Bumps
-//   customers.last_contacted_at exactly like `send-email`.
+// Action: pulls the charity's per-method payment fields, renders an email
+//   honoring any per-method subject/body/data-block override stored on the
+//   charity row (see _shared/payment_email.ts), pushes it through Resend,
+//   then writes email_log + a synthetic note (kind=email) so the action
+//   shows up on the contact's History card. Bumps customers.last_contacted_at
+//   exactly like `send-email`.
 
 import { handleOptions, json } from '../_shared/cors.ts';
-import { CHARITYTOOLING_FOOTER_HTML } from '../_shared/footer.ts';
+import {
+  assembleEmail,
+  escapeHtml,
+  markdownToEmailHtml,
+  renderDataBlock,
+  type DataBlockConfig,
+} from '../_shared/payment_email.ts';
 import { requireCharityMember, userClient } from '../_shared/supabase.ts';
 
 interface Body {
@@ -88,32 +95,93 @@ Deno.serve(async (req) => {
     }
     const toEmail = contact.email;
 
-    let subject: string;
-    let canonicalHtml: string;
     if (body.method === 'check') {
       const validation = validateCheckConfig(charity);
       if (validation) return json({ error: validation }, { status: 400 }, origin);
-      subject = `How to donate by check to ${charity.name}`;
-      canonicalHtml = renderCheckHtml(charity);
     } else {
       const validation = validateAchConfig(charity);
       if (validation) return json({ error: validation }, { status: 400 }, origin);
-      subject = `How to donate by ACH or wire to ${charity.name}`;
-      canonicalHtml = renderAchHtml(charity);
     }
 
+    const subjectTemplate =
+      body.method === 'check'
+        ? (charity.check_subject_template as string | null)
+        : (charity.ach_subject_template as string | null);
+    const bodyTemplate =
+      body.method === 'check'
+        ? (charity.check_body_template_md as string | null)
+        : (charity.ach_body_template_md as string | null);
+    const dataBlockConfig =
+      body.method === 'check'
+        ? ((charity.check_data_block as DataBlockConfig | null) ?? null)
+        : ((charity.ach_data_block as DataBlockConfig | null) ?? null);
+
+    const dataBlockHtml = renderDataBlock({
+      method: body.method,
+      charity: charity as Record<string, unknown>,
+      config: dataBlockConfig,
+    });
+
     const greetingName = contact.first_name?.trim() || contact.last_name?.trim() || '';
-    const greeting = greetingName ? `<p>Hi ${escapeHtml(greetingName)},</p>` : '';
-    const repBlock = body.rep_message_md?.trim()
-      ? `<div style="margin:0 0 16px">${simpleMarkdownToHtml(body.rep_message_md.trim())}</div>`
+    const greetingHtml = greetingName ? `<p>Hi ${escapeHtml(greetingName)},</p>` : '';
+    const repMessageHtml = body.rep_message_md?.trim()
+      ? `<div style="margin:0 0 16px">${markdownToEmailHtml(body.rep_message_md.trim())}</div>`
       : '';
 
-    const html = `
-      ${greeting}
-      ${repBlock}
-      ${canonicalHtml}
-      ${CHARITYTOOLING_FOOTER_HTML}
+    const fallbackSubject =
+      body.method === 'check'
+        ? `How to donate by check to ${charity.name}`
+        : `How to donate by ACH or wire to ${charity.name}`;
+
+    // Canonical fallback body mirrors what the prior hard-coded
+    // renderCheckHtml/renderAchHtml produced: optional intro Markdown,
+    // the structured table, and (when known) the EIN line. Greeting and
+    // rep-authored block are prepended outside the renderer so admins can
+    // ship custom bodies that include {{rep_message}} in any position.
+    const introMd =
+      body.method === 'check'
+        ? (charity.check_instructions_md as string | null)
+        : (charity.ach_instructions_md as string | null);
+    const introHtml = introMd
+      ? markdownToEmailHtml(introMd)
+      : body.method === 'check'
+        ? `<p>Thank you for considering a gift to <strong>${escapeHtml(charity.name as string)}</strong>. Here is how to send a contribution by check:</p>`
+        : `<p>Thank you for considering a gift to <strong>${escapeHtml(charity.name as string)}</strong>. Here are the bank details for an ACH or wire transfer:</p>`;
+    const intermediaryHtml =
+      body.method === 'ach' && charity.wire_intermediary_md
+        ? `<div style="margin-top:16px"><div style="color:#64748b;font-size:13px;margin-bottom:4px">Intermediary / wire instructions</div>${markdownToEmailHtml(charity.wire_intermediary_md as string)}</div>`
+        : '';
+    const einLine = charity.ein
+      ? `<p style="font-size:13px;color:#64748b">EIN: ${escapeHtml(charity.ein as string)}</p>`
+      : '';
+
+    const fallbackBodyHtml = `
+      ${greetingHtml}
+      ${repMessageHtml}
+      ${introHtml}
+      ${dataBlockHtml}
+      ${intermediaryHtml}
+      ${einLine}
     `;
+
+    const { subject, html } = assembleEmail({
+      subjectTemplate,
+      bodyTemplateMd: bodyTemplate,
+      fallbackSubject,
+      fallbackBodyHtml,
+      vars: {
+        charity_name: charity.name as string,
+        ein: (charity.ein as string | null) ?? '',
+        customer_display_name: (customer.display_name as string | null) ?? '',
+        contact_first_name: contact.first_name ?? '',
+        contact_last_name: contact.last_name ?? '',
+        rep_message: repMessageHtml,
+        data_block: dataBlockHtml,
+        // {{footer}} is set inside assembleEmail; if the admin places the
+        // placeholder in their template we substitute the canonical HTML
+        // there, otherwise it is trailing-appended. See payment_email.ts.
+      },
+    });
 
     const fromAddr = (charity.resend_from_email as string | null)
       ?? Deno.env.get('RESEND_DEFAULT_FROM')
@@ -185,103 +253,4 @@ function validateAchConfig(charity: Record<string, unknown>): string | null {
   if (!charity.ach_routing_number) return 'ach-routing-not-configured';
   if (!charity.ach_account_number) return 'ach-account-not-configured';
   return null;
-}
-
-function renderCheckHtml(charity: Record<string, unknown>): string {
-  const payable = escapeHtml(charity.check_payable_to as string);
-  const memo = charity.check_memo_default ? escapeHtml(charity.check_memo_default as string) : '';
-  const addressLines = [
-    charity.check_payable_to,
-    charity.check_mail_to_line1,
-    charity.check_mail_to_line2,
-    [charity.check_mail_to_city, charity.check_mail_to_state]
-      .filter((v) => !!v)
-      .join(', ') + (charity.check_mail_to_postal_code ? ` ${charity.check_mail_to_postal_code}` : ''),
-  ]
-    .map((l) => (typeof l === 'string' ? l.trim() : ''))
-    .filter((l) => !!l);
-
-  const intro = charity.check_instructions_md
-    ? simpleMarkdownToHtml(charity.check_instructions_md as string)
-    : `<p>Thank you for considering a gift to <strong>${escapeHtml(charity.name as string)}</strong>. Here is how to send a contribution by check:</p>`;
-
-  return `
-    ${intro}
-    <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:16px 0;font-size:14px;line-height:1.5">
-      <tr>
-        <td style="padding:6px 12px 6px 0;color:#64748b;vertical-align:top;white-space:nowrap">Make payable to</td>
-        <td style="padding:6px 0;font-weight:600">${payable}</td>
-      </tr>
-      <tr>
-        <td style="padding:6px 12px 6px 0;color:#64748b;vertical-align:top;white-space:nowrap">Mail to</td>
-        <td style="padding:6px 0">${addressLines.map((l) => escapeHtml(l)).join('<br/>')}</td>
-      </tr>
-      ${memo ? `<tr>
-        <td style="padding:6px 12px 6px 0;color:#64748b;vertical-align:top;white-space:nowrap">Memo line</td>
-        <td style="padding:6px 0">${memo}</td>
-      </tr>` : ''}
-    </table>
-    ${charity.ein ? `<p style="font-size:13px;color:#64748b">EIN: ${escapeHtml(charity.ein as string)}</p>` : ''}
-  `;
-}
-
-function renderAchHtml(charity: Record<string, unknown>): string {
-  const intro = charity.ach_instructions_md
-    ? simpleMarkdownToHtml(charity.ach_instructions_md as string)
-    : `<p>Thank you for considering a gift to <strong>${escapeHtml(charity.name as string)}</strong>. Here are the bank details for an ACH or wire transfer:</p>`;
-
-  const rows: Array<[string, string | null | undefined]> = [
-    ['Bank', charity.ach_bank_name as string | null],
-    ['Account name', charity.ach_account_name as string | null],
-    ['Account type', charity.ach_account_type as string | null],
-    ['Routing (ABA)', charity.ach_routing_number as string | null],
-    ['Account number', charity.ach_account_number as string | null],
-    ['SWIFT / BIC (wire)', charity.wire_swift_bic as string | null],
-  ];
-
-  const renderedRows = rows
-    .filter(([, v]) => !!(v && String(v).trim()))
-    .map(
-      ([label, value]) => `
-        <tr>
-          <td style="padding:6px 12px 6px 0;color:#64748b;vertical-align:top;white-space:nowrap">${escapeHtml(label)}</td>
-          <td style="padding:6px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(String(value))}</td>
-        </tr>`,
-    )
-    .join('');
-
-  const intermediary = charity.wire_intermediary_md
-    ? `<div style="margin-top:16px"><div style="color:#64748b;font-size:13px;margin-bottom:4px">Intermediary / wire instructions</div>${simpleMarkdownToHtml(charity.wire_intermediary_md as string)}</div>`
-    : '';
-
-  return `
-    ${intro}
-    <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:16px 0;font-size:14px;line-height:1.5">
-      ${renderedRows}
-    </table>
-    ${intermediary}
-    ${charity.ein ? `<p style="font-size:13px;color:#64748b">EIN: ${escapeHtml(charity.ein as string)}</p>` : ''}
-  `;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-// Same minimal markdown helper used by the EmailComposer client. Kept inline
-// rather than imported to keep the Deno bundle self-contained.
-function simpleMarkdownToHtml(md: string): string {
-  const blocks = md.split(/\n{2,}/).map((b) => {
-    let body = escapeHtml(b).replace(/\n/g, '<br/>');
-    body = body.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>');
-    body = body.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    body = body.replace(/(^|\s)\*([^*]+)\*/g, '$1<em>$2</em>');
-    return `<p style="margin:0 0 8px">${body}</p>`;
-  });
-  return blocks.join('\n');
 }

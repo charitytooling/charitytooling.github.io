@@ -3,6 +3,9 @@ import { Layout } from './components/Layout';
 import { RequireAuth } from './auth/RequireAuth';
 import { SignIn } from './auth/SignIn';
 import { LandingPage } from './routes/Landing';
+import { PrivacyPage } from './routes/Privacy';
+import { TermsPage } from './routes/Terms';
+import { WelcomePage } from './routes/Welcome';
 import { UpdatePage } from './routes/Update';
 import { ContactPage } from './routes/Contact';
 import { LedgerPage } from './routes/Ledger';
@@ -17,7 +20,10 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route path="/sign-in" element={<SignIn />} />
+      <Route path="/welcome" element={<WelcomePage />} />
       <Route
         element={
           <RequireAuth>

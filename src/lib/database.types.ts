@@ -63,6 +63,18 @@ export interface Database {
           ach_instructions_md: string | null;
           card_default_amount_cents: number | null;
           card_recurring_enabled: boolean;
+          check_subject_template: string | null;
+          check_body_template_md: string | null;
+          check_data_block: Json | null;
+          cash_subject_template: string | null;
+          cash_body_template_md: string | null;
+          cash_data_block: Json | null;
+          card_subject_template: string | null;
+          card_body_template_md: string | null;
+          card_data_block: Json | null;
+          ach_subject_template: string | null;
+          ach_body_template_md: string | null;
+          ach_data_block: Json | null;
           created_at: string;
         };
         Insert: Partial<Database['public']['Tables']['charities']['Row']> & { name: string };

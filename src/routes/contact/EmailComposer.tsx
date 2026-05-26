@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Modal } from '../ledger/AddCustomerModal';
+import { Modal } from '@/components/Modal';
 import { edgeFunctions } from '@/lib/edgeFunctions';
 import { supabase } from '@/lib/supabase';
 import { renderTemplate, useTemplates } from '@/state/templates';

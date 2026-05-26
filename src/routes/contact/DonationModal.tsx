@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Modal } from '../ledger/AddCustomerModal';
+import { Modal } from '@/components/Modal';
 import { supabase } from '@/lib/supabase';
 import { edgeFunctions } from '@/lib/edgeFunctions';
+import { isGateOpen } from '@/lib/donationGate';
+import {
+  formishFromCharity,
+  renderAchPreview,
+  renderCheckPreview,
+} from '@/lib/donationEmailPreview';
 import {
   displayName,
   primaryContact,
@@ -108,6 +114,7 @@ export function DonationModal({
     return (
       <SendInstructionsForm
         customer={customer}
+        charity={charity.data}
         method={method}
         title={title}
         onBack={back}
@@ -183,9 +190,12 @@ interface MethodAvailability {
 }
 
 function buildHelpAvailability(charity: CharityRow | null | undefined): Record<Method, MethodAvailability> {
-  const checkConfigured = !!(charity?.check_payable_to && charity?.check_mail_to_line1);
-  const achConfigured = !!(charity?.ach_bank_name && charity?.ach_routing_number && charity?.ach_account_number);
-  const cardConfigured = !!(charity?.stripe_account_id && charity?.stripe_charges_enabled);
+  // Gate predicates live in src/lib/donationGate.ts so the admin
+  // DonationInstructionsCard banner can never disagree with what the
+  // contact page actually enables.
+  const checkConfigured = isGateOpen('check', charity);
+  const achConfigured = isGateOpen('ach', charity);
+  const cardConfigured = isGateOpen('card', charity);
   return {
     check: {
       enabled: checkConfigured,
@@ -347,12 +357,14 @@ function RecordForm({
 
 function SendInstructionsForm({
   customer,
+  charity,
   method,
   title,
   onBack,
   onClose,
 }: {
   customer: CustomerRow;
+  charity: CharityRow | null | undefined;
   method: 'check' | 'ach';
   title: string;
   onBack: () => void;
@@ -370,6 +382,24 @@ function SendInstructionsForm({
   });
   const chosen = emailContacts.find((c) => c.id === contactId) ?? primary ?? emailContacts[0] ?? null;
   const [repMessage, setRepMessage] = useState('');
+
+  // Live email preview. Mirrors what supabase/functions/send-payment-instructions
+  // will render at send time. The shared helpers in @/lib/donationEmailPreview
+  // are byte-faithful with the server, so what the rep sees here is what the
+  // donor receives -- including the live personal note as they type.
+  const preview = useMemo(() => {
+    if (!charity) return null;
+    const ctx = {
+      contactFirstName: chosen?.first_name ?? null,
+      contactLastName: chosen?.last_name ?? null,
+      customerDisplayName: customer.display_name ?? null,
+      repMessageMd: repMessage,
+    };
+    const formish = formishFromCharity(charity);
+    return method === 'check'
+      ? renderCheckPreview(charity, formish, ctx)
+      : renderAchPreview(charity, formish, ctx);
+  }, [charity, chosen?.first_name, chosen?.last_name, customer.display_name, repMessage, method]);
 
   const send = useMutation({
     mutationFn: async () =>
@@ -446,11 +476,25 @@ function SendInstructionsForm({
           />
         </div>
 
-        <p className="text-xs text-ink-500 dark:text-ink-400">
-          The {method === 'check' ? 'payable-to and mail-to address' : 'bank routing and account details'} are pulled
-          from this charity's Donation instructions in Admin and are appended automatically. Sent via Resend; logged to
-          the donor's History.
-        </p>
+        {preview && (
+          <div>
+            <div className="label">Preview</div>
+            <EmailPreview subject={preview.subject} html={preview.html} />
+            <p className="mt-1 text-xs text-ink-500 dark:text-ink-400">
+              This is exactly what {chosen?.first_name?.trim() || 'the donor'} will receive. The
+              {method === 'check' ? ' payable-to and mail-to address' : ' bank routing and account details'} come from
+              this charity's Donation instructions in Admin. Sent via Resend; logged to the donor's History.
+            </p>
+          </div>
+        )}
+
+        {!preview && (
+          <p className="text-xs text-ink-500 dark:text-ink-400">
+            The {method === 'check' ? 'payable-to and mail-to address' : 'bank routing and account details'} are pulled
+            from this charity's Donation instructions in Admin and are appended automatically. Sent via Resend; logged to
+            the donor's History.
+          </p>
+        )}
 
         {!chosen?.email && (
           <p className="text-amber-600 text-sm">
@@ -509,6 +553,16 @@ function CardHelpForm({
     if (defaultDollars && !amount) setAmount(defaultDollars);
   }, [defaultDollars, amount]);
 
+  // When the charity has configured a card email template, we route invoice
+  // sends through send-card-instructions so donors get our branded email
+  // (with admin-controlled subject + body + data block). Otherwise we keep
+  // the legacy path where Stripe sends its own hosted-invoice email -- this
+  // keeps the rollout opt-in and avoids surprising existing charities.
+  const cardTemplateConfigured =
+    !!charity?.card_subject_template?.trim() ||
+    !!charity?.card_body_template_md?.trim() ||
+    !!charity?.card_data_block;
+
   const submit = useMutation({
     mutationFn: async () => {
       const amountCents = Math.round(parseFloat(amount) * 100);
@@ -516,6 +570,14 @@ function CardHelpForm({
         throw new Error('Enter an amount of at least $1.00');
       }
       if (mode === 'invoice') {
+        if (cardTemplateConfigured) {
+          return edgeFunctions.sendCardInstructions({
+            charity_id: customer.charity_id,
+            customer_id: customer.id,
+            amount_cents: amountCents,
+            mode: 'invoice',
+          });
+        }
         return edgeFunctions.stripeInvoice({
           charity_id: customer.charity_id,
           customer_id: customer.id,
@@ -532,7 +594,14 @@ function CardHelpForm({
     },
     onSuccess: (res) => {
       if (mode === 'invoice') {
-        setSentInvoice({ url: (res as { url: string | null }).url });
+        // Both paths return a payable URL on different field names. The
+        // legacy Stripe-only path returns `{ url }`; the new templated
+        // path returns `{ donate_url }`.
+        const url =
+          (res as { url?: string | null; donate_url?: string }).donate_url ??
+          (res as { url?: string | null }).url ??
+          null;
+        setSentInvoice({ url });
       } else {
         const { url } = res as { url: string };
         if (url) window.open(url, '_blank', 'noopener');
@@ -564,7 +633,9 @@ function CardHelpForm({
         {sentInvoice ? (
           <div className="space-y-3">
             <p className="text-sm">
-              Stripe has emailed the donor a hosted payment link. They can pay by card directly there.
+              {cardTemplateConfigured
+                ? 'A CharityTooling-branded email with the secure payment link has been sent to the donor.'
+                : 'Stripe has emailed the donor a hosted payment link. They can pay by card directly there.'}
             </p>
             {sentInvoice.url && (
               <a
@@ -627,7 +698,9 @@ function CardHelpForm({
 
             <p className="text-xs text-ink-500 dark:text-ink-400">
               {mode === 'invoice'
-                ? 'Stripe will email the donor a hosted invoice link. Paid amounts and receipts will appear under Donations automatically once the donor pays.'
+                ? cardTemplateConfigured
+                  ? "We'll email the donor a CharityTooling-branded message with the secure Stripe payment link. Paid amounts and receipts will appear under Donations automatically once the donor pays."
+                  : 'Stripe will email the donor a hosted invoice link. Paid amounts and receipts will appear under Donations automatically once the donor pays.'
                 : 'Opens Stripe Checkout in a new tab so the donor can confirm their card. The subscription bills monthly until cancelled.'}
             </p>
 
@@ -654,5 +727,27 @@ function CardHelpForm({
         )}
       </div>
     </Modal>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// EmailPreview: live-updating subject + HTML body panel used inside the
+// "Help donor send" sub-flow. The body container scrolls independently and
+// uses overscroll-contain so swiping inside the preview doesn't bleed
+// through to the modal scroll lock that the parent Modal applies.
+// -----------------------------------------------------------------------------
+
+function EmailPreview({ subject, html }: { subject: string; html: string }) {
+  return (
+    <div className="rounded-xl border border-ink-100 dark:border-ink-800 overflow-hidden">
+      <div className="px-3 py-2 border-b border-ink-100 dark:border-ink-800 bg-ink-50 dark:bg-ink-900">
+        <div className="text-xs text-ink-500 dark:text-ink-400">Subject</div>
+        <div className="text-sm font-medium truncate">{subject}</div>
+      </div>
+      <div
+        className="p-3 max-h-72 overflow-y-auto overscroll-contain prose prose-sm dark:prose-invert"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </div>
   );
 }

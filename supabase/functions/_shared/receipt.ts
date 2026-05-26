@@ -11,7 +11,11 @@
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { renderReceiptPdf } from './pdf.ts';
-import { CHARITYTOOLING_FOOTER_HTML } from './footer.ts';
+import {
+  assembleEmail,
+  renderDataBlock,
+  type DataBlockConfig,
+} from './payment_email.ts';
 
 const BUCKET = 'receipts';
 
@@ -131,7 +135,7 @@ export async function issueReceipt(args: IssueReceiptArgs): Promise<IssueReceipt
   });
   if (upErr) throw upErr;
 
-  await sendResendReceipt({
+  const sentSubject = await sendResendReceipt({
     fromName: (charity.resend_from_name as string) ?? (charity.name as string),
     fromEmail: (charity.resend_from_email as string) ?? Deno.env.get('RESEND_DEFAULT_FROM') ?? 'receipts@charitytooling.com',
     toEmail: donorEmail,
@@ -139,12 +143,15 @@ export async function issueReceipt(args: IssueReceiptArgs): Promise<IssueReceipt
     pdf,
     receiptNumber: receiptNumber as string,
     amountCents: args.amount_cents,
+    contactFirstName: primaryContact?.first_name ?? null,
+    contactLastName: primaryContact?.last_name ?? null,
+    customerDisplayName: (customer as { display_name?: string | null }).display_name ?? null,
   });
 
   await supabase.from('email_log').insert({
     charity_id: args.charity_id,
     customer_id: args.customer_id,
-    subject: `Donation receipt #${receiptNumber}`,
+    subject: sentSubject,
     to_email: donorEmail,
     status: 'sent',
     sent_by: args.created_by ?? null,
@@ -169,17 +176,58 @@ async function sendResendReceipt(args: {
   pdf: Uint8Array;
   receiptNumber: string;
   amountCents: number;
-}) {
+  contactFirstName: string | null;
+  contactLastName: string | null;
+  customerDisplayName: string | null;
+}): Promise<string> {
   if (!args.toEmail) throw new Error('customer-missing-email');
   const resendKey = Deno.env.get('RESEND_API_KEY');
   if (!resendKey) throw new Error('resend-not-configured');
 
-  const html = `
-    <p>Thank you for your contribution to <strong>${args.charity.name as string}</strong>.</p>
-    <p>Your receipt #${args.receiptNumber} for ${(args.amountCents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })} is attached.</p>
+  const charityName = args.charity.name as string;
+  const formattedAmount = (args.amountCents / 100).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  });
+
+  // Receipts are routed through the "cash" template slot in admin -- the
+  // only template that contains receipt-aware variables. When cash columns
+  // are null we fall back to the canonical inline string used for years.
+  const subjectTemplate = (args.charity.cash_subject_template as string | null) ?? null;
+  const bodyTemplate = (args.charity.cash_body_template_md as string | null) ?? null;
+  const dataBlockConfig = (args.charity.cash_data_block as DataBlockConfig | null) ?? null;
+
+  const dataBlockHtml = renderDataBlock({
+    method: 'cash',
+    charity: args.charity,
+    config: dataBlockConfig,
+    cashExtra: { receipt_number: args.receiptNumber, amount: formattedAmount },
+  });
+
+  const fallbackSubject = `Donation receipt #${args.receiptNumber} from ${charityName}`;
+  const fallbackBodyHtml = `
+    <p>Thank you for your contribution to <strong>${charityName}</strong>.</p>
+    <p>Your receipt #${args.receiptNumber} for ${formattedAmount} is attached.</p>
     <p>${(args.charity.receipt_disclaimer as string) ?? ''}</p>
-    ${CHARITYTOOLING_FOOTER_HTML}
   `;
+
+  const { subject, html } = assembleEmail({
+    subjectTemplate,
+    bodyTemplateMd: bodyTemplate,
+    fallbackSubject,
+    fallbackBodyHtml,
+    vars: {
+      charity_name: charityName,
+      ein: (args.charity.ein as string | null) ?? '',
+      customer_display_name: args.customerDisplayName ?? '',
+      contact_first_name: args.contactFirstName ?? '',
+      contact_last_name: args.contactLastName ?? '',
+      rep_message: '',
+      data_block: dataBlockHtml,
+      receipt_number: args.receiptNumber,
+      amount: formattedAmount,
+    },
+  });
 
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -190,7 +238,7 @@ async function sendResendReceipt(args: {
     body: JSON.stringify({
       from: `${args.fromName} <${args.fromEmail}>`,
       to: args.toEmail,
-      subject: `Donation receipt #${args.receiptNumber} from ${args.charity.name as string}`,
+      subject,
       html,
       attachments: [
         {
@@ -204,4 +252,5 @@ async function sendResendReceipt(args: {
     const payload = await r.text();
     throw new Error(`resend-failed: ${payload}`);
   }
+  return subject;
 }

@@ -1,5 +1,6 @@
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthProvider';
+import PublicLayout from '@/components/PublicLayout';
 
 export function LandingPage() {
   const { user, loading } = useAuth();
@@ -13,37 +14,14 @@ const CONTACT_MAILTO =
 
 function DonorLanding() {
   return (
-    <div className="min-h-screen bg-ink-50 dark:bg-ink-950 text-ink-900 dark:text-ink-100">
-      <TopNav />
-      <main>
-        <Hero />
-        <Standard />
-        <WhatItDoes />
-        <VerifyYourself />
-        <About />
-        <Questions />
-      </main>
-      <Footer />
-    </div>
-  );
-}
-
-function TopNav() {
-  return (
-    <header className="sticky top-0 z-10 border-b border-ink-100 dark:border-ink-800 bg-white/80 dark:bg-ink-900/80 backdrop-blur">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 h-14 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <img src="/icon.svg" alt="" className="h-7 w-7" />
-          <span className="font-semibold tracking-tight">CharityTooling</span>
-        </Link>
-        <Link
-          to="/sign-in"
-          className="text-sm font-medium text-ink-500 dark:text-ink-400 hover:text-ink-900 dark:hover:text-ink-100"
-        >
-          Sign in
-        </Link>
-      </div>
-    </header>
+    <PublicLayout>
+      <Hero />
+      <Standard />
+      <WhatItDoes />
+      <VerifyYourself />
+      <About />
+      <Questions />
+    </PublicLayout>
   );
 }
 
@@ -409,26 +387,3 @@ function Questions() {
   );
 }
 
-function Footer() {
-  return (
-    <footer className="border-t border-ink-100 dark:border-ink-800">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 grid gap-4 sm:grid-cols-3 sm:items-center text-sm text-ink-500 dark:text-ink-400">
-        <div className="flex items-center justify-center gap-2 sm:justify-start">
-          <img src="/icon.svg" alt="" className="h-5 w-5" />
-          <span>CharityTooling</span>
-        </div>
-        <div className="text-center">
-          Are you a charity admin?{' '}
-          <Link to="/sign-in" className="text-accent hover:text-accent-hover font-medium">
-            Sign in
-          </Link>
-        </div>
-        <div className="flex justify-center gap-4 sm:justify-end">
-          <a href={CONTACT_MAILTO} className="hover:text-accent">
-            Contact
-          </a>
-        </div>
-      </div>
-    </footer>
-  );
-}

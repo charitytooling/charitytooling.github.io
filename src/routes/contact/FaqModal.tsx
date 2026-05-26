@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal } from '../ledger/AddCustomerModal';
+import { Modal } from '@/components/Modal';
 import {
   useCreateFaqEntry,
   useDeleteFaqEntry,

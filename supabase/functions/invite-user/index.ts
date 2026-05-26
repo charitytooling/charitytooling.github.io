@@ -48,7 +48,16 @@ Deno.serve(async (req) => {
 
     // Trigger the Supabase Auth invite email. shouldCreateUser defaults true
     // here because we explicitly want to create the auth.users row server-side.
-    const redirectTo = origin ?? 'https://charitytooling.com';
+    //
+    // Hash-route the redirect at /welcome so the invitee lands on a dedicated
+    // page that lets them set a password before continuing to /ledger.
+    // supabase-js exchanges ?code=... for a session on load and HashRouter
+    // routes the rest. See src/auth/SignIn.tsx for the same pattern on magic
+    // links.
+    const baseOrigin = origin ?? 'https://charitytooling.com';
+    const target = new URL(baseOrigin);
+    target.hash = '#/welcome';
+    const redirectTo = target.toString();
     const { data: inviteData, error: inviteErr } = await service.auth.admin.inviteUserByEmail(
       body.email,
       { redirectTo },

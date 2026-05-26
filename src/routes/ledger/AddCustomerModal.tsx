@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
+import { Modal } from '@/components/Modal';
 import { useCreateCustomer } from '@/state/customers';
 import { useCreateContact } from '@/state/contacts';
 
@@ -114,25 +115,6 @@ function Field({ label, error, children }: { label: string; error?: string; chil
       <label className="label">{label}</label>
       {children}
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-    </div>
-  );
-}
-
-export function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-ink-900/40 px-3" onClick={onClose}>
-      <div
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-ink-900 p-4 shadow-xl safe-bottom"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} className="text-ink-500 dark:text-ink-400 text-xl leading-none">
-            ×
-          </button>
-        </div>
-        {children}
-      </div>
     </div>
   );
 }

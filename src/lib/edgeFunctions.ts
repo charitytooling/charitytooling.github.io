@@ -80,4 +80,22 @@ export const edgeFunctions = {
   }) {
     return invoke<{ ok: true; resend_id: string | null }>('send-payment-instructions', args);
   },
+  sendCardInstructions(args: {
+    charity_id: string;
+    customer_id: string;
+    contact_id?: string;
+    amount_cents: number;
+    mode: 'invoice' | 'subscription';
+    rep_message_md?: string;
+    description?: string;
+    currency?: string;
+    interval?: 'month' | 'year' | 'week';
+  }) {
+    return invoke<{
+      ok: true;
+      resend_id: string | null;
+      donate_url: string;
+      stripe_ref: { kind: 'invoice' | 'session'; id: string } | null;
+    }>('send-card-instructions', args);
+  },
 };
