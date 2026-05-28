@@ -359,8 +359,17 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
   useEffect(() => {
     setDraft({});
     debounced.setIdle();
-    scrollAppToTop();
   }, [customer.id, debounced]);
+
+  // Snap the scroll container back to the top on actual customer change.
+  // Kept in its own effect keyed strictly on customer.id; the reset effect
+  // above depends on `debounced`, which gets a fresh object identity on
+  // every render of UpdateForm (status reactive state + new object literal
+  // in useDebouncedSave). Bundling the scroll into that effect would fire
+  // it on every keystroke and save round-trip.
+  useEffect(() => {
+    scrollAppToTop();
+  }, [customer.id]);
 
   // Cross-route deep-link target from the ledger completeness modal:
   // /contact/<id>?focus=field-<key>. Scroll the matching input into view and
