@@ -32,6 +32,7 @@ import { CompanyOverview } from './contact/CompanyOverview';
 import { CallScriptModal } from './contact/CallScriptModal';
 import { FaqModal } from './contact/FaqModal';
 import { ArchiveWithNoteModal } from './contact/ArchiveWithNoteModal';
+import { scrollAppToTop } from '@/lib/scrollToTop';
 
 export function ContactPage() {
   const { id } = useParams<{ id?: string }>();
@@ -69,6 +70,14 @@ export function ContactPage() {
   useEffect(() => {
     if (loadedId) setSticky(loadedId);
   }, [loadedId, setSticky]);
+
+  // Snap the scroll container back to the top whenever the active customer
+  // changes (Next click, archive-then-jump, direct URL nav, etc.) so the
+  // user lands at the header of the new card instead of staying scrolled
+  // halfway down the previous one.
+  useEffect(() => {
+    if (loadedId) scrollAppToTop();
+  }, [loadedId]);
 
   // If the customer in the URL no longer exists (e.g. sticky points at a
   // deleted row), drop the sticky so the next landing falls back to the queue

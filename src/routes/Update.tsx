@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useActiveCharity } from '@/state/activeCharity';
 import { useUpdateQueue } from '@/state/queue';
 import { contactSortShortLabel, useProfile } from '@/state/profile';
+import { scrollAppToTop } from '@/lib/scrollToTop';
 import {
   displayName,
   primaryContact,
@@ -358,6 +359,7 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
   useEffect(() => {
     setDraft({});
     debounced.setIdle();
+    scrollAppToTop();
   }, [customer.id, debounced]);
 
   // Cross-route deep-link target from the ledger completeness modal:
@@ -496,12 +498,19 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
 
 function ResearchLink({ label, href }: { label: string; href: string | null }) {
   if (!href) return null;
+  // Google sits among ~13 other pills and is the link reps reach for most
+  // often, so it gets a distinct green treatment that contrasts with both
+  // the default gray pills and the blue accent used elsewhere in the app.
+  const isHighlighted = label === 'Google';
+  const palette = isHighlighted
+    ? 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300'
+    : 'bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-200';
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="px-3 py-1.5 rounded-full bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-200 font-medium"
+      className={`px-3 py-1.5 rounded-full font-medium ${palette}`}
     >
       {label}
     </a>

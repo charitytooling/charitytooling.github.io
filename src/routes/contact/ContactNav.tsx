@@ -23,15 +23,19 @@ export function ContactNav({
   if (queue.length === 0) return null;
 
   const idx = queue.findIndex((c) => c.id === currentId);
-  // idx === -1 means the current customer isn't in the actionable queue
-  // (e.g. they opened a fully-complete customer via search or sticky).
-  // Treat Next as "jump into the queue at position 0".
+  // Walk the queue in order; when we hit the end, wrap back to the first
+  // customer who isn't the one currently on screen. There are always more
+  // customers than can be contacted in a day, so a finite tail is a worse
+  // UX than a stable cycle. `wrapId` is null only when the queue contains
+  // exactly one customer and it's the current one - then Next genuinely
+  // has nowhere to go and renders disabled.
+  const wrapId = queue.find((c) => c.id !== currentId)?.id ?? null;
   const nextId =
     idx === -1
-      ? queue[0].id
+      ? wrapId
       : idx < queue.length - 1
         ? queue[idx + 1].id
-        : null;
+        : wrapId;
 
   return (
     <nav aria-label="Contact navigation" className="space-y-3">
