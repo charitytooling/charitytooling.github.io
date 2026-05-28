@@ -35,6 +35,46 @@ export function useContactQueue(charityId: string | null) {
   }, [customers.data, followUpIds.data, dueByCustomer.data, sort, seed]);
 }
 
+// Sibling queue for the Update tab. Same sort comparator as useContactQueue
+// (driven by profiles.contact_queue_sort), but the filter narrows strictly to
+// incomplete, non-archived customers so the "All caught up" empty state stays
+// accurate. The 'followup_due_soonest' sort still requires an open follow-up,
+// so for Update it surfaces the intersection (incomplete AND has follow-up).
+//
+// Returns { data, isLoading } so callers can distinguish "still fetching the
+// customer list" from "list is loaded and genuinely empty" (the latter drives
+// the All caught up empty state).
+export function useUpdateQueue(charityId: string | null): {
+  data: CustomerRow[];
+  isLoading: boolean;
+} {
+  const customers = useCustomers(charityId);
+  const followUpIds = useCustomerIdsWithOpenFollowUps(charityId);
+  const dueByCustomer = useOpenFollowUpsByCustomer(charityId);
+  const profile = useProfile();
+  const sort: ContactQueueSort = profile.data?.contact_queue_sort ?? 'stalest_first';
+
+  const seed = useMemo(() => Math.random(), [charityId, sort]);
+
+  const data = useMemo<CustomerRow[]>(() => {
+    const all = customers.data ?? [];
+    const followSet = followUpIds.data ?? new Set<string>();
+    const due = dueByCustomer.data ?? new Map<string, number>();
+
+    const incomplete = all.filter(
+      (c) => (c.completeness_score ?? 0) < 100 && !c.archived_at,
+    );
+    const base =
+      sort === 'followup_due_soonest'
+        ? incomplete.filter((c) => followSet.has(c.id))
+        : incomplete;
+
+    return [...base].sort(getComparator(sort, due, seed));
+  }, [customers.data, followUpIds.data, dueByCustomer.data, sort, seed]);
+
+  return { data, isLoading: customers.isLoading };
+}
+
 function getComparator(
   sort: ContactQueueSort,
   due: Map<string, number>,

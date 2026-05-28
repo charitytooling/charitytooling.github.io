@@ -13,6 +13,7 @@ import {
 } from '@/lib/push';
 import { useProfile, useUpdateContactSort, type ContactQueueSort } from '@/state/profile';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { hardReloadForUpdate } from '@/lib/hardReload';
 
 type Prefs = {
   followups_due: boolean;
@@ -52,6 +53,7 @@ export function SettingsPage() {
   const [perm, setPerm] = useState(notificationPermission());
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [pushError, setPushError] = useState<string | null>(null);
+  const [reloading, setReloading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -130,7 +132,7 @@ export function SettingsPage() {
       <section className="card space-y-3">
         <h2 className="font-semibold">Contact queue order</h2>
         <p className="text-xs text-ink-500 dark:text-ink-400">
-          Controls Previous/Next on the Contact page, and which customer opens when you tap "Contact" in the nav.
+          Controls Previous/Next on the Contact page and the order on the Update page, plus which customer opens when you tap "Contact" in the nav.
         </p>
         <ContactSortPicker />
       </section>
@@ -202,6 +204,29 @@ export function SettingsPage() {
             />
           </div>
         )}
+      </section>
+
+      <section className="card space-y-3">
+        <div>
+          <h2 className="font-semibold">App version</h2>
+          <p className="text-xs text-ink-500 dark:text-ink-400">
+            If the app feels stuck on an old version, this clears the cached
+            app files and reloads the latest build. You stay signed in.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-ghost w-full"
+          onClick={async () => {
+            if (reloading) return;
+            if (!window.confirm('Clear cached app files and reload?')) return;
+            setReloading(true);
+            await hardReloadForUpdate();
+          }}
+          disabled={reloading}
+        >
+          {reloading ? 'Updating...' : 'Check for updates & reload'}
+        </button>
       </section>
     </div>
   );

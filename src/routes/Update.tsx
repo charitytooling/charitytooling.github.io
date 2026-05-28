@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useActiveCharity } from '@/state/activeCharity';
+import { useUpdateQueue } from '@/state/queue';
+import { contactSortShortLabel, useProfile } from '@/state/profile';
 import {
   displayName,
   primaryContact,
@@ -58,33 +58,16 @@ export function UpdatePage() {
   const { activeCharityId } = useActiveCharity();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const sticky = useStickyCustomer();
   const setSticky = useSetStickyCustomer();
 
   const explicitId = params.get('id') ?? null;
 
-  // Find next incomplete customer when no id is provided and no sticky exists.
-  const nextQuery = useQuery({
-    queryKey: ['next-incomplete', activeCharityId],
-    enabled: !!activeCharityId && !explicitId && !sticky,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('charity_id', activeCharityId!)
-        .is('archived_at', null)
-        .lt('completeness_score', 100)
-        .order('completeness_score', { ascending: true })
-        .order('updated_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const activeId = explicitId ?? sticky ?? nextQuery.data?.id ?? null;
+  // Queue of incomplete customers ordered by the user's Settings preference
+  // (profiles.contact_queue_sort, shared with the Contact page).
+  const queue = useUpdateQueue(activeCharityId);
+  const fallbackId = queue.data[0]?.id ?? null;
+  const activeId = explicitId ?? sticky ?? fallbackId;
   const customer = useCustomer(activeId ?? undefined);
 
   useEffect(() => {
@@ -92,8 +75,8 @@ export function UpdatePage() {
   }, [activeId, setSticky]);
 
   // If we landed on a customer purely via sticky and they turn out to be
-  // archived or gone (deleted), drop the sticky so next-incomplete kicks in on
-  // the next render instead of looping on a dead id.
+  // archived or gone (deleted), drop the sticky so the queue picks a fresh
+  // candidate on the next render instead of looping on a dead id.
   useEffect(() => {
     if (explicitId) return;
     if (customer.data?.archived_at || customer.error) {
@@ -103,8 +86,11 @@ export function UpdatePage() {
 
   function nextCustomer() {
     setParams({});
-    setSticky(null);
-    qc.invalidateQueries({ queryKey: ['next-incomplete', activeCharityId] });
+    // Advance past the current customer when another candidate exists, so
+    // tapping Next on the lowest-completeness record actually moves forward
+    // instead of re-picking the same id.
+    const nextId = queue.data.find((c) => c.id !== activeId)?.id ?? null;
+    setSticky(nextId);
   }
 
   if (!activeCharityId) {
@@ -116,7 +102,7 @@ export function UpdatePage() {
     );
   }
 
-  if (!activeId && nextQuery.isLoading) {
+  if (!activeId && queue.isLoading) {
     return <div className="mx-auto max-w-2xl px-4 py-6 text-ink-400 dark:text-ink-500">Loading...</div>;
   }
 
@@ -342,6 +328,8 @@ export function CustomerFieldInput<K extends string = keyof CustomerRow & string
 function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () => void }) {
   const update = useUpdateCustomer(customer.id);
   const archive = useArchiveCustomer(customer.id);
+  const profile = useProfile();
+  const sort = profile.data?.contact_queue_sort ?? 'stalest_first';
   const [draft, setDraft] = useState<Partial<CustomerRow>>({});
   const debounced = useDebouncedSave<{
     key: keyof CustomerRow;
@@ -489,14 +477,15 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
         {debounced.status === 'idle' && '\u00a0'}
       </p>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" className="btn-ghost" onClick={onNext}>
-          Skip
-        </button>
-        <button type="button" className="btn-primary" onClick={onNext}>
-          Save & next
-        </button>
-      </div>
+      <button type="button" className="btn-primary w-full" onClick={onNext}>
+        Next
+      </button>
+      <p className="text-xs text-ink-500 dark:text-ink-400 text-center">
+        Order: {contactSortShortLabel(sort)}.{' '}
+        <Link to="/settings" className="underline hover:text-accent">
+          Change
+        </Link>
+      </p>
 
       <div className="flex justify-center pt-1">
         <VisitStopwatch />

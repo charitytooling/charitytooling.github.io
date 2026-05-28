@@ -9,6 +9,23 @@ export type ContactQueueSort =
   | 'newest_added'
   | 'random';
 
+// Slim caption used under the Update tab's Next button. Settings keeps its own
+// longer descriptive labels in CONTACT_SORT_OPTIONS.
+export function contactSortShortLabel(sort: ContactQueueSort): string {
+  switch (sort) {
+    case 'stalest_first':
+      return 'Last contacted, oldest first';
+    case 'followup_due_soonest':
+      return 'Open follow-up due soonest';
+    case 'name_az':
+      return 'Name A-Z';
+    case 'newest_added':
+      return 'Newest added';
+    case 'random':
+      return 'Random';
+  }
+}
+
 export function useProfile() {
   const { user } = useAuth();
   return useQuery({
