@@ -26,7 +26,7 @@ export function ArchiveWithNoteModal({
   onClose: () => void;
   onArchived: () => void;
 }) {
-  const [kind, setKind] = useState<'call' | 'email' | 'meeting' | 'research' | 'other'>('other');
+  const [kind, setKind] = useState<'call' | 'email' | 'meeting' | 'research' | 'other'>('research');
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
 
