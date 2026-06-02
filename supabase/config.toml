@@ -71,3 +71,8 @@ verify_jwt = false
 # the role claim to be `service_role`. pg_cron sends a service-role JWT
 # stored in Supabase Vault.
 verify_jwt = true
+
+[functions.activity-digest]
+# Same as cron-digest for the hourly cron path; the test-send path requires a
+# super-admin user JWT (checked in-function).
+verify_jwt = true

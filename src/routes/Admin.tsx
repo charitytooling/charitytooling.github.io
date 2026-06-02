@@ -4,6 +4,7 @@ import { AdminIndex } from './admin/AdminIndex';
 import { CharitiesList } from './admin/CharitiesList';
 import { CharityNew } from './admin/CharityNew';
 import { CharityDetail } from './admin/CharityDetail';
+import { Digests } from './admin/Digests';
 
 export function AdminPage() {
   const isAdmin = useIsAnyCharityAdmin();
@@ -27,6 +28,10 @@ export function AdminPage() {
         element={isSuper ? <CharityNew /> : <Navigate to="/admin/charities" replace />}
       />
       <Route path="charities/:id" element={<CharityDetail />} />
+      <Route
+        path="digests"
+        element={isSuper ? <Digests /> : <Navigate to="/admin" replace />}
+      />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );
