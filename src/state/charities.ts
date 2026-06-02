@@ -49,3 +49,37 @@ export function useMyCharities() {
     },
   });
 }
+
+export interface CharityMember {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  role: 'admin' | 'rep';
+}
+
+// Accepted members of a charity, for admin pickers. Backed by the
+// list_charity_members SECURITY DEFINER RPC, which only returns rows when the
+// caller is an admin of the charity or a super admin (empty otherwise, no
+// error) -- so this is safe to call from any context. See
+// 20260525020000_member_status.sql.
+export function useCharityMembers(charityId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['charity_members_named', charityId],
+    enabled: !!charityId,
+    queryFn: async (): Promise<CharityMember[]> => {
+      const { data, error } = await supabase.rpc('list_charity_members', {
+        c_id: charityId!,
+      });
+      if (error) throw error;
+      return (data ?? [])
+        .filter((m) => m.accepted_at !== null)
+        .map((m) => ({
+          user_id: m.user_id,
+          full_name: m.full_name,
+          email: m.email,
+          role: m.role,
+        }));
+    },
+    staleTime: 60_000,
+  });
+}

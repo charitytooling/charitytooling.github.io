@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useCharityMembers } from '@/state/charities';
 import { displayName } from '@/state/customers';
 import type { Database } from '@/lib/database.types';
 
@@ -8,6 +9,9 @@ export type ActivityRange = '7d' | '30d' | '90d' | 'all';
 
 type NoteKind = Database['public']['Tables']['notes']['Row']['kind'];
 
+// `actor` is the display name of who logged the event. It is only populated
+// in the super-admin "All users" view (where it disambiguates whose work an
+// entry is); single-user views leave it null since the actor is implied.
 export type RecentEvent =
   | {
       source: 'note';
@@ -16,6 +20,7 @@ export type RecentEvent =
       kind: NoteKind;
       body: string;
       customer: { id: string; name: string } | null;
+      actor: string | null;
     }
   | {
       source: 'email';
@@ -24,6 +29,7 @@ export type RecentEvent =
       subject: string;
       toEmail: string;
       customer: { id: string; name: string } | null;
+      actor: string | null;
     };
 
 export interface PerDayStats {
@@ -106,6 +112,7 @@ interface NoteRowJoined {
   kind: NoteKind;
   body: string;
   created_at: string;
+  created_by: string | null;
   customer: { id: string; display_name: string | null } | null;
 }
 
@@ -114,18 +121,35 @@ interface EmailRowJoined {
   subject: string;
   to_email: string;
   sent_at: string;
+  sent_by: string | null;
   customer: { id: string; display_name: string | null } | null;
 }
 
+// userId selects whose activity to load. A real user id filters to that user;
+// the 'all' sentinel skips the per-user filter so every member of the charity
+// is aggregated (used by the super-admin "All users" view). RLS still scopes
+// reads to the charity.
 export function useMyActivity(opts: {
   charityId: string | null;
-  userId: string | null;
+  userId: string | 'all' | null;
   range: ActivityRange;
   tzName: string;
 }): MyActivityResult {
   const { charityId, userId, range, tzName } = opts;
   const fromIso = useMemo(() => rangeStartIso(range, tzName), [range, tzName]);
   const enabled = !!charityId && !!userId;
+  const userFilter = userId === 'all' ? null : userId;
+
+  // Actor names are only needed (and only resolvable) in the aggregate view.
+  // The RPC returns nothing for non-admins, so this is a no-op there.
+  const membersQ = useCharityMembers(userId === 'all' ? charityId : null);
+  const actorNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of membersQ.data ?? []) {
+      map.set(m.user_id, m.full_name?.trim() || m.email || m.user_id);
+    }
+    return map;
+  }, [membersQ.data]);
 
   const visitsQ = useQuery({
     queryKey: ['my_activity', 'visits', charityId, userId, range],
@@ -137,8 +161,8 @@ export function useMyActivity(opts: {
           'customer_id, started_at, ended_at, duration_seconds, customer:customers!inner(id, display_name)',
         )
         .eq('charity_id', charityId!)
-        .eq('user_id', userId!)
         .order('ended_at', { ascending: false });
+      if (userFilter) q = q.eq('user_id', userFilter);
       if (fromIso) q = q.gte('ended_at', fromIso);
       const { data, error } = await q;
       if (error) throw error;
@@ -153,11 +177,11 @@ export function useMyActivity(opts: {
       let q = supabase
         .from('notes')
         .select(
-          'id, kind, body, created_at, customer:customers!inner(id, display_name)',
+          'id, kind, body, created_at, created_by, customer:customers!inner(id, display_name)',
         )
         .eq('charity_id', charityId!)
-        .eq('created_by', userId!)
         .order('created_at', { ascending: false });
+      if (userFilter) q = q.eq('created_by', userFilter);
       if (fromIso) q = q.gte('created_at', fromIso);
       const { data, error } = await q;
       if (error) throw error;
@@ -171,10 +195,10 @@ export function useMyActivity(opts: {
     queryFn: async (): Promise<EmailRowJoined[]> => {
       let q = supabase
         .from('email_log')
-        .select('id, subject, to_email, sent_at, customer:customers(id, display_name)')
+        .select('id, subject, to_email, sent_at, sent_by, customer:customers(id, display_name)')
         .eq('charity_id', charityId!)
-        .eq('sent_by', userId!)
         .order('sent_at', { ascending: false });
+      if (userFilter) q = q.eq('sent_by', userFilter);
       if (fromIso) q = q.gte('sent_at', fromIso);
       const { data, error } = await q;
       if (error) throw error;
@@ -240,6 +264,9 @@ export function useMyActivity(opts: {
       (a, b) => b.totalSeconds - a.totalSeconds,
     );
 
+    const actorFor = (id: string | null): string | null =>
+      userId === 'all' && id ? actorNames.get(id) ?? null : null;
+
     const recentEvents: RecentEvent[] = [
       ...notes.map<RecentEvent>((n) => ({
         source: 'note',
@@ -250,6 +277,7 @@ export function useMyActivity(opts: {
         customer: n.customer
           ? { id: n.customer.id, name: displayName(n.customer) }
           : null,
+        actor: actorFor(n.created_by),
       })),
       ...emails.map<RecentEvent>((e) => ({
         source: 'email',
@@ -260,6 +288,7 @@ export function useMyActivity(opts: {
         customer: e.customer
           ? { id: e.customer.id, name: displayName(e.customer) }
           : null,
+        actor: actorFor(e.sent_by),
       })),
     ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 
@@ -286,5 +315,7 @@ export function useMyActivity(opts: {
     notesQ.error,
     emailsQ.error,
     tzName,
+    userId,
+    actorNames,
   ]);
 }

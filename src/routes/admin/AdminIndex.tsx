@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useIsSuperAdmin } from '@/state/profile';
 import { useMyCharities } from '@/state/charities';
+import { UsersOverview } from './UsersOverview';
 
 export function AdminIndex() {
   const isSuper = useIsSuperAdmin();
@@ -78,6 +79,8 @@ export function AdminIndex() {
           </Link>
         </section>
       )}
+
+      {isSuper && <UsersOverview />}
     </div>
   );
 }

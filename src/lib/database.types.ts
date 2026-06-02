@@ -529,6 +529,19 @@ export interface Database {
           accepted_at: string | null;
         }>;
       };
+      super_admin_user_overview: {
+        Args: { since?: string };
+        Returns: Array<{
+          user_id: string;
+          email: string | null;
+          full_name: string | null;
+          app_seconds: number;
+          visit_seconds: number;
+          active_days: number;
+          note_count: number;
+          call_count: number;
+        }>;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

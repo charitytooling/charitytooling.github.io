@@ -145,7 +145,12 @@ function FeedRow({ event }: { event: RecentEvent }) {
             {relative(event.at)}
           </span>
         </div>
-        <p className="text-sm text-ink-600 dark:text-ink-300 truncate">{title}</p>
+        <p className="text-sm text-ink-600 dark:text-ink-300 truncate">
+          {event.actor && (
+            <span className="text-ink-400 dark:text-ink-500">{event.actor} · </span>
+          )}
+          {title}
+        </p>
       </div>
     </div>
   );

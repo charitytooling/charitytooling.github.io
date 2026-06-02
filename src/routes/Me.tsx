@@ -2,12 +2,17 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthProvider';
 import { useActiveCharity } from '@/state/activeCharity';
-import { useMyCharities } from '@/state/charities';
+import { useMyCharities, useCharityMembers } from '@/state/charities';
 import { useMyActivity, type ActivityRange } from '@/state/myActivity';
+import { useIsSuperAdmin } from '@/state/profile';
 import { formatStopwatch } from '@/state/visitTimer';
 import { ActivityHeatmap } from './me/ActivityHeatmap';
 import { TopCustomers } from './me/TopCustomers';
 import { RecentFeed } from './me/RecentFeed';
+
+// Whose activity the page is showing. 'all' aggregates every member of the
+// active charity; any other value is a specific user id (defaults to self).
+type ActivityTarget = 'all' | string;
 
 const RANGES: { id: ActivityRange; label: string; days: number }[] = [
   { id: '7d', label: '7d', days: 7 },
@@ -20,17 +25,51 @@ export function MePage() {
   const { user } = useAuth();
   const { activeCharityId } = useActiveCharity();
   const { data: charities } = useMyCharities();
+  const isSuper = useIsSuperAdmin();
   const [range, setRange] = useState<ActivityRange>('30d');
+  const [target, setTarget] = useState<ActivityTarget>('self');
+
+  // Members for the admin scope picker; empty for non-admins (the RPC returns
+  // nothing unless you're an admin of the charity or a super admin).
+  const { data: members } = useCharityMembers(isSuper ? activeCharityId : null);
+
+  // Resolve the effective target into a concrete userId / 'all' for the hook.
+  // Non-admins (and the default) always view their own activity. If the active
+  // charity changes, a previously selected member may no longer apply, so we
+  // fall back to self when the target isn't valid for the current member list.
+  const targetUserId = useMemo<string | 'all' | null>(() => {
+    if (!isSuper || target === 'self') return user?.id ?? null;
+    if (target === 'all') return 'all';
+    const stillValid = (members ?? []).some((m) => m.user_id === target);
+    return stillValid ? target : (user?.id ?? null);
+  }, [isSuper, target, members, user?.id]);
 
   const tzName =
     charities?.find((c) => c.id === activeCharityId)?.default_tz ?? 'UTC';
 
   const activity = useMyActivity({
     charityId: activeCharityId,
-    userId: user?.id ?? null,
+    userId: targetUserId,
     range,
     tzName,
   });
+
+  // Keep the <select> value pinned to an option that actually exists, so a
+  // stale member selection (after switching charity) shows "Me" rather than
+  // a blank control. Mirrors the targetUserId fallback above.
+  const selectValue = useMemo<ActivityTarget>(() => {
+    if (!isSuper || target === 'self') return 'self';
+    if (target === 'all') return 'all';
+    return (members ?? []).some((m) => m.user_id === target) ? target : 'self';
+  }, [isSuper, target, members]);
+
+  const headingLabel = useMemo(() => {
+    if (!isSuper || targetUserId === user?.id) return 'My activity';
+    if (targetUserId === 'all') return 'All users · activity';
+    const m = (members ?? []).find((x) => x.user_id === targetUserId);
+    const name = m?.full_name?.trim() || m?.email || 'User';
+    return `${name} · activity`;
+  }, [isSuper, targetUserId, user?.id, members]);
 
   const windowDays = useMemo(
     () => RANGES.find((r) => r.id === range)?.days ?? 30,
@@ -58,11 +97,34 @@ export function MePage() {
     <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
       <header className="card space-y-3">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">My activity</h1>
+          <h1 className="text-xl font-semibold">{headingLabel}</h1>
           <span className="text-xs text-ink-500 dark:text-ink-400">
             {tzName}
           </span>
         </div>
+        {isSuper && (
+          <div>
+            <label className="label" htmlFor="activity-scope">
+              Viewing
+            </label>
+            <select
+              id="activity-scope"
+              className="field"
+              value={selectValue}
+              onChange={(e) => setTarget(e.target.value)}
+            >
+              <option value="self">Me</option>
+              <option value="all">All users</option>
+              {(members ?? [])
+                .filter((m) => m.user_id !== user?.id)
+                .map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.full_name?.trim() || m.email || m.user_id}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           {RANGES.map((r) => (
             <button
