@@ -32,6 +32,12 @@ export const edgeFunctions = {
   }) {
     return invoke<{ ok: true; donation_id: string; receipt_number: string }>('send-receipt', args);
   },
+  activityDigestTest(args: { recipient_id: string }) {
+    return invoke<{ ok: true; skipped: boolean; resend_id?: string | null }>('activity-digest', {
+      test: true,
+      recipient_id: args.recipient_id,
+    });
+  },
   sendPush(args: {
     user_ids?: string[];
     charity_id?: string;

@@ -136,6 +136,7 @@ supabase functions deploy invite-user
 supabase functions deploy send-email
 supabase functions deploy send-receipt
 supabase functions deploy send-push
+supabase functions deploy activity-digest   # super-admin activity digests (hourly cron + test send)
 supabase functions deploy stripe-connect
 supabase functions deploy stripe-webhook --no-verify-jwt   # public webhook
 ```
@@ -161,6 +162,7 @@ Put the public key in `VITE_VAPID_PUBLIC_KEY` (GitHub Actions secret) and the pr
 | 6 | done | Donations + receipts (PDF, Resend) |
 | 7 | done | iOS install, Web Push, pg_cron digests |
 | 8 | done | Stripe Connect |
+| 9 | done | App session tracking + super-admin activity digest emails (Resend, pg_cron) |
 
 ## License
 

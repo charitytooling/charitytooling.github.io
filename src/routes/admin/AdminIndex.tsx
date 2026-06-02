@@ -58,6 +58,26 @@ export function AdminIndex() {
           </ul>
         )}
       </section>
+
+      {isSuper && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            Reports
+          </h2>
+          <Link
+            to="/admin/digests"
+            className="card flex items-center justify-between hover:border-accent/40 transition"
+          >
+            <div>
+              <div className="font-semibold">Activity digests</div>
+              <div className="text-xs text-ink-500 dark:text-ink-400">
+                Email summaries of team activity to chosen recipients
+              </div>
+            </div>
+            <span className="text-ink-400 dark:text-ink-500">›</span>
+          </Link>
+        </section>
+      )}
     </div>
   );
 }

@@ -459,6 +459,62 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['audit_log']['Row']>;
         Relationships: [];
       };
+      app_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          started_at: string;
+          last_seen_at: string;
+          ended_at: string | null;
+          duration_seconds: number;
+          user_agent: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['app_sessions']['Row']> & {
+          user_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['app_sessions']['Row']>;
+        Relationships: [];
+      };
+      activity_digest_recipients: {
+        Row: {
+          id: string;
+          user_id: string;
+          send_daily: boolean;
+          send_weekly: boolean;
+          scope: 'all' | 'specific';
+          charity_ids: string[];
+          enabled: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['activity_digest_recipients']['Row']> & {
+          user_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['activity_digest_recipients']['Row']>;
+        Relationships: [];
+      };
+      activity_digest_log: {
+        Row: {
+          id: string;
+          recipient_user_id: string | null;
+          to_email: string;
+          frequency: 'daily' | 'weekly';
+          period_key: string;
+          resend_id: string | null;
+          status: string | null;
+          detail: Json | null;
+          sent_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['activity_digest_log']['Row']> & {
+          to_email: string;
+          frequency: 'daily' | 'weekly';
+          period_key: string;
+        };
+        Update: Partial<Database['public']['Tables']['activity_digest_log']['Row']>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
