@@ -91,6 +91,8 @@ export function LedgerPage() {
 
   const filtered = useMemo(() => {
     let list = customers ?? [];
+    // "Viewing archived" is an archived-only view, not active + archived.
+    if (showArchived) list = list.filter((c) => c.archived_at != null);
     if (filters.tags.length) {
       list = list.filter((c) => (c.tags ?? []).some((t) => filters.tags.includes(t)));
     }
@@ -116,7 +118,7 @@ export function LedgerPage() {
       });
     }
     return list;
-  }, [customers, search, filters, followUpDue]);
+  }, [customers, search, filters, followUpDue, showArchived]);
 
   function toggleArr(key: 'tags' | 'states', value: string) {
     setFilters((f) => {
@@ -229,7 +231,7 @@ export function LedgerPage() {
           <span>
             {isLoading
               ? 'Loading...'
-              : `${filtered.length.toLocaleString()} of ${(customers?.length ?? 0).toLocaleString()}`}
+              : `${filtered.length.toLocaleString()} of ${(showArchived ? archived.length : customers?.length ?? 0).toLocaleString()}`}
           </span>
           <div className="flex items-center gap-3">
             <button
@@ -246,7 +248,7 @@ export function LedgerPage() {
               ].join(' ')}
             >
               <ArchiveIcon className="h-3.5 w-3.5" />
-              {showArchived ? 'Viewing archived' : 'Show archived'}
+              {showArchived ? `Viewing archived (${archived.length})` : 'Show archived'}
             </button>
             <button
               type="button"
@@ -301,6 +303,7 @@ export function LedgerPage() {
                     customer={c}
                     archiveNote={archiveNotes?.get(c.id)}
                     followUpDueMs={followUpDue?.get(c.id)}
+                    archivedView={showArchived}
                     canDelete={isSuper}
                     isDeleting={del.isPending && pendingDelete?.id === c.id}
                     onRequestDelete={setPendingDelete}
@@ -358,6 +361,7 @@ function CustomerRowItem({
   customer,
   archiveNote,
   followUpDueMs,
+  archivedView,
   canDelete,
   isDeleting,
   onRequestDelete,
@@ -365,6 +369,7 @@ function CustomerRowItem({
   customer: CustomerRow;
   archiveNote?: ArchiveNote;
   followUpDueMs?: number;
+  archivedView?: boolean;
   canDelete: boolean;
   isDeleting: boolean;
   onRequestDelete: (customer: CustomerRow) => void;
@@ -391,7 +396,7 @@ function CustomerRowItem({
         style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
         className={[
           'flex items-center justify-between gap-3 py-3',
-          isArchived ? 'opacity-60' : '',
+          isArchived && !archivedView ? 'opacity-60' : '',
         ].join(' ')}
       >
         <Link
@@ -400,7 +405,7 @@ function CustomerRowItem({
         >
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-medium truncate">{displayName(customer)}</span>
-            {isArchived && (
+            {isArchived && !archivedView && (
               <span className="shrink-0 text-[10px] uppercase tracking-wide bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-2 py-0.5 rounded-full">
                 Archived
               </span>

@@ -147,7 +147,17 @@ export function ContactPage() {
       <header className="card">
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-2xl font-semibold break-words">{name}</h1>
+            <h1 className="text-2xl font-semibold break-words">
+              <a
+                href={`https://www.google.com/search?q=${encodeURIComponent(name)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Search Google for "${name}"`}
+                className="underline decoration-ink-300 decoration-dotted underline-offset-4 hover:decoration-accent dark:decoration-ink-600"
+              >
+                {name}
+              </a>
+            </h1>
             {isArchived && (
               <span className="shrink-0 text-[10px] uppercase tracking-wide bg-ink-100 dark:bg-ink-800 text-ink-500 dark:text-ink-400 px-2 py-0.5 rounded-full">
                 Archived
