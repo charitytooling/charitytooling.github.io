@@ -33,6 +33,7 @@ export function BottomNav() {
       icon: ContactIcon,
     },
     { to: '/ledger', prefix: '/ledger', label: 'Ledger', icon: LedgerIcon },
+    { to: '/search', prefix: '/search', label: 'Search', icon: SearchIcon },
   ];
   if (showAdmin) {
     items.push({ to: '/admin', prefix: '/admin', label: 'Admin', icon: AdminIcon });
@@ -64,6 +65,15 @@ export function BottomNav() {
         })}
       </ul>
     </nav>
+  );
+}
+
+function SearchIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
   );
 }
 

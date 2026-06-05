@@ -515,9 +515,122 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['activity_digest_log']['Row']>;
         Relationships: [];
       };
+      bmf_orgs: {
+        Row: {
+          ein: string;
+          name: string;
+          city: string | null;
+          state: string | null;
+          zip: string | null;
+          subsection: string | null;
+          foundation_code: string | null;
+          status: string | null;
+          ntee: string | null;
+          ntee_major: string | null;
+          ruling: string | null;
+          revenue: number | null;
+          assets: number | null;
+          income: number | null;
+          street: string | null;
+          in_care_of: string | null;
+          deductibility: string | null;
+          tax_period: string | null;
+          is_daf_sponsor: boolean;
+          // STORED generated columns
+          org_type: 'public_charity' | 'private_foundation' | null;
+          search_text: string;
+        };
+        Insert: Partial<Database['public']['Tables']['bmf_orgs']['Row']> & {
+          ein: string;
+          name: string;
+        };
+        Update: Partial<Database['public']['Tables']['bmf_orgs']['Row']>;
+        Relationships: [];
+      };
+      daf_orgs: {
+        Row: {
+          ein: string;
+          type: string | null;
+          subtype: string | null;
+          name: string | null;
+          state: string | null;
+          ntee_major: string | null;
+        };
+        Insert: Partial<Database['public']['Tables']['daf_orgs']['Row']> & { ein: string };
+        Update: Partial<Database['public']['Tables']['daf_orgs']['Row']>;
+        Relationships: [];
+      };
+      daf_history: {
+        Row: {
+          ein: string;
+          year: number;
+          fiscal_year_end: number | null;
+          end_of_tax_period: string | null;
+          operating_status: string | null;
+          vetted_status: string | null;
+          accounts: number | null;
+          contributions: number | null;
+          grants: number | null;
+          assets: number | null;
+        };
+        Insert: Partial<Database['public']['Tables']['daf_history']['Row']> & {
+          ein: string;
+          year: number;
+        };
+        Update: Partial<Database['public']['Tables']['daf_history']['Row']>;
+        Relationships: [];
+      };
     };
-    Views: Record<string, never>;
+    Views: {
+      daf_metrics: {
+        Row: {
+          ein: string;
+          year: number;
+          type: string | null;
+          subtype: string | null;
+          name: string | null;
+          state: string | null;
+          ntee_major: string | null;
+          fiscal_year_end: number | null;
+          end_of_tax_period: string | null;
+          operating_status: string | null;
+          vetted_status: string | null;
+          accounts: number | null;
+          contributions: number | null;
+          grants: number | null;
+          eoy_assets: number | null;
+          prior_assets: number | null;
+          is_latest: boolean;
+          payout_pct: number | null;
+          payout_approx: boolean | null;
+          avg_grant: number | null;
+          net_flow: number | null;
+          velocity: number | null;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
+      search_bmf: {
+        Args: {
+          _states?: string[] | null;
+          _ntee_majors?: string[] | null;
+          _ntee_prefixes?: string[] | null;
+          _subsections?: string[] | null;
+          _statuses?: string[] | null;
+          _foundations?: string[] | null;
+          _min_revenue?: number | null;
+          _org_type?: string | null;
+          _daf_only?: boolean | null;
+          _q?: string | null;
+          _sort_key?: string | null;
+          _sort_dir?: string | null;
+          _limit?: number | null;
+          _after_sortval?: string | null;
+          _after_ein?: string | null;
+        };
+        Returns: Array<{ total: number; stats: Json; rows: Json }>;
+      };
       list_charity_members: {
         Args: { c_id: string };
         Returns: Array<{

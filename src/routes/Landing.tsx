@@ -39,9 +39,9 @@ function Hero() {
           <p className="mt-6 text-lg text-ink-600 dark:text-ink-300 leading-relaxed">
             CharityTooling is the donor-management tool for the Charity to keep track of
             donations like yours. Until a charity gets over a certain size, we offer our services for
-            free and only accept groups that spend at least 95% of every dollar recived on
+            free and only accept groups that spend at least 95% of every dollar received on
             qualifying distributions. When you see our name you know your money was fully
-            comitted to their mission.
+            committed to their mission.
           </p>
           <p className="mt-8">
             <a

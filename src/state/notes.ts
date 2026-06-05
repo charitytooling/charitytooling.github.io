@@ -108,6 +108,70 @@ export function useDeleteNote() {
   });
 }
 
+export type ArchiveNote = {
+  body: string;
+  kind: NoteRow['kind'];
+  created_at: string;
+  authorEmail: string | null;
+};
+
+// The "archive comment" isn't a column — the Archive & leave note flow creates
+// a note immediately before setting archived_at. So per archived customer we
+// take their latest note, but only when it was created around archive time (a
+// generous window absorbs client/server clock skew). Customers archived without
+// a note get nothing rather than a stale, unrelated note.
+export function useArchiveNotes(
+  charityId: string | null,
+  archived: { id: string; archived_at: string | null }[],
+) {
+  const ids = archived.map((a) => a.id).sort();
+  const archivedAtById = new Map(archived.map((a) => [a.id, a.archived_at] as const));
+  return useQuery({
+    queryKey: ['archive_notes', charityId, ids.join(',')],
+    enabled: !!charityId && ids.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Map<string, ArchiveNote>> => {
+      const latest = new Map<string, ArchiveNote>();
+      const CHUNK = 200;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        const { data, error } = await supabase
+          .from('notes')
+          .select('customer_id, body, kind, created_at, author:profiles!notes_created_by_profile_fkey(id, email)')
+          .in('customer_id', chunk)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        for (const n of (data ?? []) as unknown as Array<{
+          customer_id: string;
+          body: string;
+          kind: NoteRow['kind'];
+          created_at: string;
+          author: NoteAuthor | null;
+        }>) {
+          // Descending order => the first row seen per customer is the latest.
+          if (!latest.has(n.customer_id)) {
+            latest.set(n.customer_id, {
+              body: n.body,
+              kind: n.kind,
+              created_at: n.created_at,
+              authorEmail: n.author?.email ?? null,
+            });
+          }
+        }
+      }
+      const WINDOW = 10 * 60_000; // 10 minutes around archived_at
+      const out = new Map<string, ArchiveNote>();
+      for (const [cid, note] of latest) {
+        const archivedAt = archivedAtById.get(cid);
+        if (!archivedAt) continue;
+        const diff = Math.abs(new Date(note.created_at).getTime() - new Date(archivedAt).getTime());
+        if (diff <= WINDOW) out.set(cid, note);
+      }
+      return out;
+    },
+  });
+}
+
 export function useFollowUps(customerId: string | undefined) {
   return useQuery({
     queryKey: ['follow_ups', customerId],

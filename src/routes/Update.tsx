@@ -15,22 +15,7 @@ import {
   type CustomerRow,
 } from '@/state/customers';
 import { CompletenessDisclosure } from '@/components/CompletenessDisclosure';
-import {
-  bizapediaUrl,
-  candidUrl,
-  causeIqUrl,
-  charityNavigatorUrl,
-  facebookUrl,
-  googleMapsUrl,
-  googleNewsUrl,
-  googleUrl,
-  irsTeosUrl,
-  linkedInCompanyUrl,
-  linkedInPeopleUrl,
-  propublicaUrl,
-  xUrl,
-  youtubeUrl,
-} from '@/lib/researchLinks';
+import { ResearchChips } from '@/components/ResearchChips';
 import {
   useCreateContact,
   useDeleteContact,
@@ -442,20 +427,7 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
           <div className="h-full bg-accent" style={{ width: `${customer.completeness_score}%` }} />
         </div>
         <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
-          <ResearchLink label="ProPublica" href={propublicaUrl(customer)} />
-          <ResearchLink label="IRS TEOS" href={irsTeosUrl(customer)} />
-          <ResearchLink label="Candid" href={candidUrl(customer)} />
-          <ResearchLink label="Cause IQ" href={causeIqUrl(customer)} />
-          <ResearchLink label="Charity Navigator" href={charityNavigatorUrl(customer)} />
-          <ResearchLink label="Maps" href={googleMapsUrl(customer)} />
-          <ResearchLink label="Bizapedia" href={bizapediaUrl(customer)} />
-          <ResearchLink label="LinkedIn (Co)" href={linkedInCompanyUrl(customer)} />
-          <ResearchLink label="LinkedIn" href={linkedInPeopleUrl(customer)} />
-          <ResearchLink label="Google" href={googleUrl(customer)} />
-          <ResearchLink label="Google News" href={googleNewsUrl(customer)} />
-          <ResearchLink label="Facebook" href={facebookUrl(customer)} />
-          <ResearchLink label="X" href={xUrl(customer)} />
-          <ResearchLink label="YouTube" href={youtubeUrl(customer)} />
+          <ResearchChips subject={customer} />
         </div>
       </header>
 
@@ -502,27 +474,6 @@ function UpdateForm({ customer, onNext }: { customer: CustomerRow; onNext: () =>
         <VisitStopwatch />
       </div>
     </div>
-  );
-}
-
-function ResearchLink({ label, href }: { label: string; href: string | null }) {
-  if (!href) return null;
-  // Google sits among ~13 other pills and is the link reps reach for most
-  // often, so it gets a distinct green treatment that contrasts with both
-  // the default gray pills and the blue accent used elsewhere in the app.
-  const isHighlighted = label === 'Google';
-  const palette = isHighlighted
-    ? 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300'
-    : 'bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-200';
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className={`px-3 py-1.5 rounded-full font-medium ${palette}`}
-    >
-      {label}
-    </a>
   );
 }
 

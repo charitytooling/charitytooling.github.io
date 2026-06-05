@@ -10,6 +10,7 @@ import {
 } from '@/routes/Update';
 import type { CustomerRow } from '@/state/customers';
 import type { Database } from '@/lib/database.types';
+import { orgToCustomerInsert, upsertCustomerWithContact } from '@/lib/customerHelpers';
 
 // Use the bare customers row type for drafts/payloads we hand to Supabase.
 // CustomerRow has the embedded `customer_contacts` array which Supabase's
@@ -116,7 +117,7 @@ export function ImportDafPage() {
   useEffect(() => {
     if (!activeCharityId || rows.length === 0) return;
     const initial: Record<string, Partial<CustomerBase>> = {};
-    for (const r of rows) initial[r.ein] = toInsert(r, activeCharityId);
+    for (const r of rows) initial[r.ein] = orgToCustomerInsert(r, activeCharityId);
     setDrafts(initial);
     setContactDrafts({});
     setStatus({});
@@ -158,7 +159,7 @@ export function ImportDafPage() {
 
     const draft = drafts[ein] ?? {};
     const payload = {
-      ...toInsert(row, activeCharityId),
+      ...orgToCustomerInsert(row, activeCharityId),
       ...draft,
     };
     const dup = existing.get(ein);
@@ -175,60 +176,14 @@ export function ImportDafPage() {
     setStatus((s) => ({ ...s, [ein]: 'saving' }));
     setErrors((e) => ({ ...e, [ein]: null }));
     try {
-      let customerId: string;
-      if (dup) {
-        const { error } = await supabase
-          .from('customers')
-          .update(payload)
-          .eq('id', dup.id);
-        if (error) throw error;
-        customerId = dup.id;
-        setSavedId((m) => ({ ...m, [ein]: dup.id }));
-        setSavedAs((m) => ({ ...m, [ein]: 'replaced' }));
-      } else {
-        const { data, error } = await supabase
-          .from('customers')
-          .insert(payload)
-          .select('id')
-          .single();
-        if (error) throw error;
-        customerId = data!.id;
-        setSavedId((m) => ({ ...m, [ein]: data!.id }));
-        setSavedAs((m) => ({ ...m, [ein]: 'imported' }));
-      }
-
-      // Primary contact upsert.
-      // - New customer + any contact field filled in: insert.
-      // - Replacing duplicate: try updating the existing primary, and if
-      //   there isn't one yet, fall back to insert.
-      if (hasContactInput) {
-        if (dup) {
-          const upd = await supabase
-            .from('customer_contacts')
-            .update(contactDraft)
-            .eq('customer_id', customerId)
-            .eq('is_primary', true)
-            .select('id');
-          if (upd.error) throw upd.error;
-          if (!upd.data || upd.data.length === 0) {
-            const ins = await supabase.from('customer_contacts').insert({
-              ...contactDraft,
-              customer_id: customerId,
-              charity_id: activeCharityId,
-              is_primary: true,
-            });
-            if (ins.error) throw ins.error;
-          }
-        } else {
-          const ins = await supabase.from('customer_contacts').insert({
-            ...contactDraft,
-            customer_id: customerId,
-            charity_id: activeCharityId,
-            is_primary: true,
-          });
-          if (ins.error) throw ins.error;
-        }
-      }
+      const { customerId, wasCreated } = await upsertCustomerWithContact(
+        activeCharityId,
+        payload,
+        hasContactInput ? contactDraft : undefined,
+        { existingId: dup?.id ?? null },
+      );
+      setSavedId((m) => ({ ...m, [ein]: customerId }));
+      setSavedAs((m) => ({ ...m, [ein]: wasCreated ? 'imported' : 'replaced' }));
 
       setStatus((s) => ({ ...s, [ein]: 'saved' }));
       qc.invalidateQueries({ queryKey: ['customers', activeCharityId] });
@@ -624,20 +579,4 @@ function nullable(v: unknown): string | null {
 
 function numberOrNull(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
-}
-
-function toInsert(r: DafRow, charityId: string) {
-  return {
-    charity_id: charityId,
-    ein: r.ein,
-    display_name: r.name,
-    address_line1: r.street,
-    city: r.city,
-    state: r.state,
-    postal_code: r.zip,
-    filing_revenue: r.revenue,
-    filing_income: r.income,
-    filing_assets: r.assets,
-    filing_tax_period: r.tax_period,
-  };
 }

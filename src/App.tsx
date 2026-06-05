@@ -10,6 +10,8 @@ import { UpdatePage } from './routes/Update';
 import { ContactPage } from './routes/Contact';
 import { LedgerPage } from './routes/Ledger';
 import { ImportDafPage } from './routes/ImportDaf';
+import { SearchPage } from './routes/Search';
+import { MetricsPage } from './routes/Metrics';
 import { CalendarPage } from './routes/Calendar';
 import { AdminPage } from './routes/Admin';
 import { SettingsPage } from './routes/Settings';
@@ -35,6 +37,8 @@ export default function App() {
         <Route path="/contact/:id?" element={<ContactPage />} />
         <Route path="/ledger" element={<LedgerPage />} />
         <Route path="/ledger/import-daf" element={<ImportDafPage />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/metrics" element={<MetricsPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/admin/*" element={<AdminPage />} />
         <Route path="/settings" element={<SettingsPage />} />
