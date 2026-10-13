@@ -38,12 +38,14 @@ export const APPS = {
   charity: {
     members: 'charity_members', invitations: 'invitations', tenantKey: 'charity_id', nameKey: 'charity_name',
     roles: ['admin', 'rep'], lookup: 'lookup_code', consume: 'consume_code', newCode: 'new_invite_code',
+    tenants: 'charities',
     base: 'https://charitytooling.com', originRe: /charitytooling\.com$|^localhost$/,
     welcome(u: URL) { u.hash = '#/welcome'; },
   },
   ct: {
     members: 'ct_company_members', invitations: 'ct_invitations', tenantKey: 'company_id', nameKey: 'company_name',
     roles: ['admin', 'member'], lookup: 'ct_lookup_code', consume: 'ct_consume_code', newCode: 'ct_new_invite_code',
+    tenants: 'ct_companies',
     base: 'https://costtooling.com', originRe: /costtooling\.com$|^localhost$|^127\.0\.0\.1$/,
     welcome(u: URL) { u.searchParams.set('auth', 'welcome'); },
   },
@@ -109,4 +111,15 @@ export async function requireCharityMember(client: SupabaseClient, charityId: st
     .maybeSingle();
   if (!m) throw new Response('Forbidden', { status: 403 });
   return user;
+}
+
+/** User metadata attached to an invite so the auth-email hook can name the inviter and the company/charity. */
+export async function inviteMetadata(service: ReturnType<typeof serviceClient>, app: AppKey, tenantId: string, inviterId: string | null) {
+  const cfg = APPS[app];
+  const [{ data: tenant }, { data: inviter }] = await Promise.all([
+    service.from(cfg.tenants).select('name').eq('id', tenantId).maybeSingle(),
+    inviterId ? service.from('profiles').select('full_name, email').eq('id', inviterId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const inviterName = (inviter?.full_name as string | null)?.trim() || (inviter?.email as string | null)?.split('@')[0] || '';
+  return { app, tenant_name: (tenant?.name as string | null) ?? '', invited_by_name: inviterName };
 }

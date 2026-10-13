@@ -10,7 +10,7 @@
 // up; if they already have an account they are attached straight away.
 
 import { handleOptions, json } from '../_shared/cors.ts';
-import { APPS, appOf, redirectBase, requireTenantAdmin, serviceClient, userClient } from '../_shared/supabase.ts';
+import { APPS, appOf, inviteMetadata, redirectBase, requireTenantAdmin, serviceClient, userClient } from '../_shared/supabase.ts';
 
 Deno.serve(async (req) => {
   const pre = handleOptions(req);
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const redirectTo = redirectBase(app, origin).toString();
     const { data: inviteData, error: inviteErr } = await service.auth.admin.inviteUserByEmail(
       body.email,
-      { redirectTo },
+      { redirectTo, data: await inviteMetadata(service, app, tenantId, caller.id) },
     );
     if (inviteErr && !/already.*registered/i.test(inviteErr.message)) {
       return json({ error: inviteErr.message }, { status: 500 }, origin);

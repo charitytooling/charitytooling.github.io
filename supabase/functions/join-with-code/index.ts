@@ -16,7 +16,7 @@
 // IP by code_attempt_allowed().
 
 import { handleOptions, json } from '../_shared/cors.ts';
-import { APPS, appOf, redirectBase, serviceClient } from '../_shared/supabase.ts';
+import { APPS, appOf, inviteMetadata, redirectBase, serviceClient } from '../_shared/supabase.ts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     if (invErr) return json({ error: invErr.message }, { status: 500 }, origin);
 
     const target = redirectBase(app, origin);
-    const { data: inviteData, error: inviteErr } = await service.auth.admin.inviteUserByEmail(email, { redirectTo: target.toString() });
+    const { data: inviteData, error: inviteErr } = await service.auth.admin.inviteUserByEmail(email, { redirectTo: target.toString(), data: await inviteMetadata(service, app, info.tenantId, info.invited_by) });
     if (inviteErr) return json({ error: inviteErr.message }, { status: 500 }, origin);
 
     await service.rpc(cfg.consume, { p_code: code });

@@ -51,6 +51,10 @@ policy = "oneshot"
 [functions.invite-user]
 verify_jwt = true
 
+[functions.auth-email]
+# Called by Supabase Auth itself (Send Email hook); signed with SEND_EMAIL_HOOK_SECRET, no user JWT.
+verify_jwt = false
+
 [functions.join-with-code]
 # Public: people use it before they have an account. Rate limited per IP inside.
 verify_jwt = false
