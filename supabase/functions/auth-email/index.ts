@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
   // verified yet), fall back to the charitytooling.com domain with the same
   // display name so the email still arrives.
   let res = await send(brand.from, to, subject, html, text);
-  if (!res.ok && /domain|not verified|from/i.test(res.body)) res = await send(brand.fallbackFrom, to, subject, html, text);
+  if (!res.ok && /domain|not verified|from/i.test(res.body)) { console.warn('auth-email: sender rejected, using fallback', brand.from, res.body.slice(0, 160)); res = await send(brand.fallbackFrom, to, subject, html, text); }
   if (!res.ok) { console.error('auth-email resend failed', res.status, res.body); return fail(500, `resend-failed: ${res.status}`); }
   return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
 });
