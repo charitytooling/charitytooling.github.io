@@ -14,6 +14,8 @@ export interface Database {
           full_name: string | null;
           avatar_url: string | null;
           is_super_admin: boolean;
+          must_change_password: boolean;
+          suspended_at: string | null;
           contact_queue_sort:
             | 'stalest_first'
             | 'followup_due_soonest'
@@ -89,6 +91,7 @@ export interface Database {
           invited_by: string | null;
           invited_at: string | null;
           accepted_at: string | null;
+          deactivated_at: string | null;
         };
         Insert: Partial<Database['public']['Tables']['charity_members']['Row']> & {
           charity_id: string;
@@ -98,10 +101,27 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['charity_members']['Row']>;
         Relationships: [];
       };
+      join_codes: {
+        Row: {
+          id: string;
+          charity_id: string;
+          code: string;
+          role: 'admin' | 'rep';
+          max_uses: number;
+          uses: number;
+          expires_at: string;
+          created_by: string | null;
+          revoked_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['join_codes']['Row']> & { charity_id: string; code: string; role: 'admin' | 'rep'; expires_at: string };
+        Update: Partial<Database['public']['Tables']['join_codes']['Row']>;
+        Relationships: [];
+      };
       invitations: {
         Row: {
           id: string;
-          email: string;
+          email: string | null;
           charity_id: string;
           role: 'admin' | 'rep';
           token: string;
@@ -109,9 +129,12 @@ export interface Database {
           expires_at: string;
           accepted_at: string | null;
           created_at: string;
+          code: string | null;
+          max_uses: number;
+          uses: number;
         };
         Insert: Partial<Database['public']['Tables']['invitations']['Row']> & {
-          email: string;
+          email?: string | null;
           charity_id: string;
           role: 'admin' | 'rep';
           token: string;
@@ -640,7 +663,18 @@ export interface Database {
           role: 'admin' | 'rep';
           invited_at: string | null;
           accepted_at: string | null;
+          deactivated_at: string | null;
+          must_change_password: boolean;
+          suspended_at: string | null;
         }>;
+      };
+      create_invite_code: {
+        Args: { c_id: string; p_role: 'admin' | 'rep'; p_email?: string | null };
+        Returns: Database['public']['Tables']['invitations']['Row'];
+      };
+      rotate_join_code: {
+        Args: { c_id: string; p_role?: 'admin' | 'rep'; p_max_uses?: number; p_days?: number };
+        Returns: Database['public']['Tables']['join_codes']['Row'];
       };
       super_admin_user_overview: {
         Args: { since?: string };

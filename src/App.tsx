@@ -6,6 +6,9 @@ import { LandingPage } from './routes/Landing';
 import { PrivacyPage } from './routes/Privacy';
 import { TermsPage } from './routes/Terms';
 import { WelcomePage } from './routes/Welcome';
+import { ForgotPasswordPage } from './routes/ForgotPassword';
+import { ResetPasswordPage } from './routes/ResetPassword';
+import { JoinPage } from './routes/Join';
 import { UpdatePage } from './routes/Update';
 import { ContactPage } from './routes/Contact';
 import { LedgerPage } from './routes/Ledger';
@@ -26,6 +29,9 @@ export default function App() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/sign-in" element={<SignIn />} />
       <Route path="/welcome" element={<WelcomePage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/join" element={<JoinPage />} />
       <Route
         element={
           <RequireAuth>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import { BrandMark } from '@/components/BrandMark';
 import { supabase } from '@/lib/supabase';
@@ -153,10 +153,15 @@ export function SignIn() {
                 {error}
                 <br />
                 <span className="text-ink-500 dark:text-ink-400">
-                  This app is invite-only. If you haven't received an invitation, ask your charity admin.
+                  Forgot your password? Reset it below. New here? Ask your charity admin for an invite code.
                 </span>
               </p>
             )}
+
+            <div className="flex items-center justify-between text-sm pt-1">
+              <Link to="/forgot-password" className="text-ink-500 dark:text-ink-400 hover:underline">Forgot password?</Link>
+              <Link to="/join" className="text-ink-500 dark:text-ink-400 hover:underline">Have an invite code?</Link>
+            </div>
           </form>
         )}
       </div>

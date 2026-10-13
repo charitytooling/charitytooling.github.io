@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { supabase } from '@/lib/supabase';
-import { edgeFunctions } from '@/lib/edgeFunctions';
 import { useIsSuperAdmin, useMyMemberships } from '@/state/profile';
 import {
   useTemplates,
@@ -14,6 +13,7 @@ import {
   type TemplateKind,
 } from '@/state/templates';
 import { DonationInstructionsCard } from './DonationInstructionsCard';
+import { InvitationsSection, JoinCodeCard, MembersSection } from './MembersPanel';
 import type { Database } from '@/lib/database.types';
 
 type CharityRow = Database['public']['Tables']['charities']['Row'];
@@ -65,8 +65,9 @@ export function CharityDetail() {
         </div>
       )}
 
-      <MembersSection charityId={charityId} canAdmin={canAdmin} />
+      <MembersSection charityId={charityId} canAdmin={canAdmin} isSuper={isSuper} />
       {canAdmin && <InvitationsSection charityId={charityId} />}
+      {canAdmin && <JoinCodeCard charityId={charityId} />}
       {canAdmin && <TemplatesSection charityId={charityId} />}
       {canAdmin && <DonationInstructionsCard charity={charity.data as CharityRow} />}
     </div>
@@ -367,200 +368,5 @@ function SettingsCard({ charity }: { charity: Record<string, unknown> }) {
         </div>
       )}
     </form>
-  );
-}
-
-interface MemberRow {
-  user_id: string;
-  email: string | null;
-  full_name: string | null;
-  role: 'admin' | 'rep';
-  invited_at: string | null;
-  accepted_at: string | null;
-}
-
-function MembersSection({ charityId, canAdmin }: { charityId: string; canAdmin: boolean }) {
-  const qc = useQueryClient();
-  const members = useQuery({
-    queryKey: ['members', charityId],
-    queryFn: async (): Promise<MemberRow[]> => {
-      const { data, error } = await supabase.rpc('list_charity_members', { c_id: charityId });
-      if (error) throw error;
-      return ((data ?? []) as MemberRow[]).filter((m) => m.accepted_at !== null);
-    },
-  });
-
-  const changeRole = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'rep' }) => {
-      const { error } = await supabase
-        .from('charity_members')
-        .update({ role })
-        .eq('charity_id', charityId)
-        .eq('user_id', userId);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members', charityId] }),
-  });
-
-  const remove = useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from('charity_members')
-        .delete()
-        .eq('charity_id', charityId)
-        .eq('user_id', userId);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members', charityId] }),
-  });
-
-  return (
-    <section className="card space-y-3">
-      <h2 className="font-semibold">Members</h2>
-      {members.error && (
-        <p className="text-sm text-red-600">{(members.error as Error).message}</p>
-      )}
-      {members.isLoading ? (
-        <div className="text-ink-400 dark:text-ink-500 text-sm">Loading...</div>
-      ) : (members.data ?? []).length === 0 ? (
-        <p className="text-sm text-ink-500 dark:text-ink-400">No members yet.</p>
-      ) : (
-        <ul className="divide-y divide-ink-100 dark:divide-ink-800">
-          {(members.data ?? []).map((m: MemberRow) => {
-            return (
-              <li key={m.user_id} className="py-3 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{m.full_name ?? m.email ?? m.user_id}</div>
-                  <div className="text-xs text-ink-500 dark:text-ink-400 capitalize">{m.role}</div>
-                </div>
-                {canAdmin && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <select
-                      className="bg-ink-100 dark:bg-ink-800 text-sm rounded-lg px-2 py-1"
-                      value={m.role}
-                      onChange={(e) => changeRole.mutate({ userId: m.user_id, role: e.target.value as 'admin' | 'rep' })}
-                    >
-                      <option value="rep">Rep</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                    <button
-                      type="button"
-                      className="text-red-600 text-sm"
-                      onClick={() => {
-                        if (confirm('Remove this member?')) remove.mutate(m.user_id);
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {canAdmin && <InviteForm charityId={charityId} />}
-    </section>
-  );
-}
-
-function InviteForm({ charityId }: { charityId: string }) {
-  const qc = useQueryClient();
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'admin' | 'rep'>('rep');
-  const [message, setMessage] = useState<string | null>(null);
-
-  const invite = useMutation({
-    mutationFn: () => edgeFunctions.inviteUser({ email: email.trim().toLowerCase(), charity_id: charityId, role }),
-    onSuccess: () => {
-      setMessage(`Invited ${email}`);
-      setEmail('');
-      qc.invalidateQueries({ queryKey: ['invitations', charityId] });
-      qc.invalidateQueries({ queryKey: ['members', charityId] });
-    },
-    onError: (err) => setMessage((err as Error).message),
-  });
-
-  return (
-    <div className="border-t border-ink-100 dark:border-ink-800 pt-4 mt-2">
-      <div className="text-sm font-semibold mb-2">Invite a new member</div>
-      <div className="flex flex-col sm:flex-row gap-2">
-        <input
-          type="email"
-          className="field flex-1"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="person@example.org"
-        />
-        <select className="field sm:w-32" value={role} onChange={(e) => setRole(e.target.value as 'admin' | 'rep')}>
-          <option value="rep">Rep</option>
-          <option value="admin">Admin</option>
-        </select>
-        <button
-          type="button"
-          className="btn-primary sm:w-40"
-          disabled={!email || invite.isPending}
-          onClick={() => invite.mutate()}
-        >
-          {invite.isPending ? 'Inviting...' : 'Send invite'}
-        </button>
-      </div>
-      {message && <p className="text-sm text-ink-500 dark:text-ink-400 mt-2">{message}</p>}
-    </div>
-  );
-}
-
-function InvitationsSection({ charityId }: { charityId: string }) {
-  const qc = useQueryClient();
-  const invitations = useQuery({
-    queryKey: ['invitations', charityId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('invitations')
-        .select('id, email, role, created_at, expires_at, accepted_at')
-        .eq('charity_id', charityId)
-        .is('accepted_at', null)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const revoke = useMutation({
-    mutationFn: async (invId: string) => {
-      const { error } = await supabase.from('invitations').delete().eq('id', invId);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations', charityId] }),
-  });
-
-  const pending = invitations.data ?? [];
-  if (pending.length === 0) return null;
-
-  return (
-    <section className="card space-y-3">
-      <h2 className="font-semibold">Pending invitations</h2>
-      <ul className="divide-y divide-ink-100 dark:divide-ink-800">
-        {pending.map((inv) => (
-          <li key={inv.id} className="py-2 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="font-medium truncate">{inv.email}</div>
-              <div className="text-xs text-ink-500 dark:text-ink-400 capitalize">
-                {inv.role} - expires {new Date(inv.expires_at).toLocaleDateString()}
-              </div>
-            </div>
-            <button
-              type="button"
-              className="text-red-600 text-sm"
-              onClick={() => {
-                if (confirm('Revoke this invitation?')) revoke.mutate(inv.id);
-              }}
-            >
-              Revoke
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }

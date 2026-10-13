@@ -51,6 +51,13 @@ policy = "oneshot"
 [functions.invite-user]
 verify_jwt = true
 
+[functions.join-with-code]
+# Public: people use it before they have an account. Rate limited per IP inside.
+verify_jwt = false
+
+[functions.admin-reset]
+verify_jwt = true
+
 [functions.send-email]
 verify_jwt = true
 

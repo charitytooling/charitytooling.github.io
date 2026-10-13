@@ -1,12 +1,14 @@
-import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthProvider';
 import { BrandMark } from '@/components/BrandMark';
-import { supabase } from '@/lib/supabase';
+import { PasswordCard } from '@/auth/PasswordCard';
+import { useProfile } from '@/state/profile';
 
 export function WelcomePage() {
   const { session, user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const { data: profile } = useProfile();
+  const mustChange = profile?.must_change_password === true;
 
   if (loading) return null;
 
@@ -34,8 +36,9 @@ export function WelcomePage() {
       <div className="space-y-4">
         <PasswordCard
           email={user?.email ?? ''}
+          intro={mustChange ? <>Welcome back{user?.email ? <>, <span className="font-medium">{user.email}</span></> : null}. Choose a new password to keep this account yours.</> : undefined}
           onDone={() => navigate('/ledger', { replace: true })}
-          onSkip={() => navigate('/ledger', { replace: true })}
+          onSkip={mustChange ? undefined : () => navigate('/ledger', { replace: true })}
         />
         <div className="text-center">
           <button
@@ -65,109 +68,5 @@ function Shell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
     </div>
-  );
-}
-
-function PasswordCard({
-  email,
-  onDone,
-  onSkip,
-}: {
-  email: string;
-  onDone: () => void;
-  onSkip: () => void;
-}) {
-  const [pwd, setPwd] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (pwd.length < 8) {
-      setError('Password must be at least 8 characters.');
-      return;
-    }
-    if (pwd !== confirm) {
-      setError('Passwords do not match.');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const { error: err } = await supabase.auth.updateUser({ password: pwd });
-      if (err) throw err;
-      onDone();
-    } catch (err) {
-      setSubmitting(false);
-      setError(err instanceof Error ? err.message : 'Could not set password.');
-    }
-  }
-
-  return (
-    <form onSubmit={onSubmit} className="card space-y-4">
-      <div>
-        <p className="text-sm text-ink-700 dark:text-ink-200">
-          You're signed in{email ? <> as <span className="font-medium">{email}</span></> : null}.
-          Set a password to make signing in easier next time. You can also keep using
-          magic links.
-        </p>
-      </div>
-
-      <div>
-        <label className="label" htmlFor="welcome-password">
-          New password
-        </label>
-        <input
-          id="welcome-password"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          className="field"
-          value={pwd}
-          onChange={(e) => setPwd(e.target.value)}
-          required
-        />
-      </div>
-
-      <div>
-        <label className="label" htmlFor="welcome-confirm">
-          Confirm password
-        </label>
-        <input
-          id="welcome-confirm"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          className="field"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          required
-        />
-      </div>
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <button
-        type="submit"
-        className="btn-primary w-full"
-        disabled={submitting || !pwd || !confirm}
-      >
-        {submitting ? 'Saving...' : 'Set password and continue'}
-      </button>
-
-      <button
-        type="button"
-        className="btn-ghost w-full"
-        onClick={onSkip}
-        disabled={submitting}
-      >
-        Skip for now
-      </button>
-
-      <p className="text-xs text-ink-500 dark:text-ink-400 text-center">
-        You can set a password later in Settings.
-      </p>
-    </form>
   );
 }

@@ -36,6 +36,9 @@ Deno.serve(async (req) => {
     // happens via email match in handle_new_user(), but we keep it for
     // future deep-link flows.
     const token = crypto.randomUUID();
+    // Every emailed invite also carries a short code the admin can read out if
+    // the email never arrives; the invitee can redeem it at /#/join.
+    const { data: code } = await service.rpc('new_invite_code', { c_id: body.charity_id });
 
     const { error: invErr } = await service.from('invitations').insert({
       email: body.email.trim().toLowerCase(),
@@ -43,6 +46,7 @@ Deno.serve(async (req) => {
       role: body.role,
       token,
       invited_by: caller.id,
+      code: typeof code === 'string' ? code : null,
     });
     if (invErr) return json({ error: invErr.message }, { status: 500 }, origin);
 
@@ -84,7 +88,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, user: inviteData?.user ?? null }, {}, origin);
+    return json({ ok: true, code: typeof code === 'string' ? code : null, user: inviteData?.user ?? null }, {}, origin);
   } catch (err) {
     if (err instanceof Response) return err;
     return json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 }, origin);

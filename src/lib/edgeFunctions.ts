@@ -6,9 +6,25 @@ async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T
   return data as T;
 }
 
+export type JoinCheck =
+  | { ok: true; charity_name: string; role: 'admin' | 'rep'; kind: 'invite' | 'join'; email_bound: boolean }
+  | { ok: false; reason: string };
+export type JoinResult =
+  | { ok: true; existing: boolean; charity_name: string; role: 'admin' | 'rep' }
+  | { ok: false; reason: string };
+
 export const edgeFunctions = {
   inviteUser(args: { email: string; charity_id: string; role: 'admin' | 'rep' }) {
-    return invoke<{ ok: true } | { error: string }>('invite-user', args);
+    return invoke<{ ok: true; code: string | null } | { error: string }>('invite-user', args);
+  },
+  checkCode(args: { code: string }) {
+    return invoke<JoinCheck>('join-with-code', { action: 'check', code: args.code });
+  },
+  joinWithCode(args: { code: string; email: string }) {
+    return invoke<JoinResult>('join-with-code', { action: 'join', code: args.code, email: args.email });
+  },
+  adminReset(args: { user_id: string; charity_id?: string; method: 'magic_link' | 'temp_password' | 'suspend' | 'unsuspend' }) {
+    return invoke<{ ok: true; link?: string | null; expires_minutes?: number; password?: string } | { error: string }>('admin-reset', args);
   },
   sendEmail(args: {
     customer_id: string;
