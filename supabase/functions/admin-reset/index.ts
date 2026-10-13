@@ -1,16 +1,16 @@
 // admin-reset
 //
-// Body: { user_id, charity_id, method: 'magic_link' | 'temp_password' | 'suspend' | 'unsuspend' }
+// Body: { app?: 'charity' | 'ct', user_id, charity_id | company_id, method: 'magic_link' | 'temp_password' | 'suspend' | 'unsuspend' }
 //
-// Auth: magic_link / temp_password need a super admin or an admin of
-// `charity_id` whose target is a member of that charity. suspend / unsuspend
-// are super admin only (a ban affects every charity the person belongs to).
+// Auth: magic_link / temp_password need a super admin or an active admin of
+// the tenant whose target is a member of that tenant. suspend / unsuspend are
+// super admin only (a ban affects every tenant and both apps).
 //
 // This is the only place the service-role key touches another user's
 // credentials. Every call writes an audit_log row.
 
 import { handleOptions, json } from '../_shared/cors.ts';
-import { requireCharityAdmin, requireSuperAdmin, serviceClient, userClient } from '../_shared/supabase.ts';
+import { APPS, appOf, redirectBase, requireSuperAdmin, requireTenantAdmin, serviceClient, userClient } from '../_shared/supabase.ts';
 
 const WORDS = ['oak', 'river', 'maple', 'cedar', 'stone', 'brook', 'harbor', 'meadow', 'ridge', 'pine', 'willow', 'summit', 'canyon', 'delta', 'ember', 'falcon', 'garden', 'heron', 'island', 'juniper', 'kestrel', 'lantern', 'marble', 'north', 'orchard', 'prairie', 'quartz', 'raven', 'saddle', 'timber', 'valley', 'walnut', 'yonder', 'zephyr', 'amber', 'birch', 'copper', 'dune', 'elm', 'fern'];
 function tempPassword(): string {
@@ -25,7 +25,10 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method-not-allowed' }, { status: 405 }, origin);
 
   try {
-    const body = (await req.json()) as { user_id?: string; charity_id?: string; method?: string };
+    const body = (await req.json()) as { user_id?: string; charity_id?: string; company_id?: string; method?: string; app?: string };
+    const app = appOf(body.app);
+    const cfg = APPS[app];
+    const tenantId = app === 'ct' ? body.company_id : body.charity_id;
     const method = body.method;
     if (!body.user_id || !method || !['magic_link', 'temp_password', 'suspend', 'unsuspend'].includes(method)) {
       return json({ error: 'missing-fields' }, { status: 400 }, origin);
@@ -37,11 +40,11 @@ Deno.serve(async (req) => {
     if (method === 'suspend' || method === 'unsuspend') {
       caller = await requireSuperAdmin(user);
     } else {
-      if (!body.charity_id) return json({ error: 'missing-fields' }, { status: 400 }, origin);
-      caller = await requireCharityAdmin(user, body.charity_id);
+      if (!tenantId) return json({ error: 'missing-fields' }, { status: 400 }, origin);
+      caller = await requireTenantAdmin(user, app, tenantId);
       const { data: isSuper } = await service.from('profiles').select('is_super_admin').eq('id', caller.id).maybeSingle();
       if (!isSuper?.is_super_admin) {
-        const { data: m } = await service.from('charity_members').select('user_id').eq('charity_id', body.charity_id).eq('user_id', body.user_id).maybeSingle();
+        const { data: m } = await service.from(cfg.members).select('user_id').eq(cfg.tenantKey, tenantId).eq('user_id', body.user_id).maybeSingle();
         if (!m) return json({ error: 'not-a-member' }, { status: 403 }, origin);
       }
     }
@@ -52,12 +55,11 @@ Deno.serve(async (req) => {
     const email = target.user.email;
 
     const audit = (diff: Record<string, unknown>) => service.from('audit_log').insert({
-      actor_id: caller.id, charity_id: body.charity_id ?? null, entity_type: 'account', entity_id: body.user_id, action: 'update', diff: { method, ...diff },
+      actor_id: caller.id, charity_id: app === 'charity' ? (tenantId ?? null) : null, entity_type: 'account', entity_id: body.user_id, action: 'update', diff: { method, app, tenant_id: tenantId ?? null, ...diff },
     });
 
     if (method === 'magic_link') {
-      const base = new URL(origin && /charitytooling\.com$|localhost/.test(new URL(origin).hostname) ? origin : 'https://charitytooling.com');
-      base.hash = '#/welcome';
+      const base = redirectBase(app, origin);
       const { data, error } = await service.auth.admin.generateLink({ type: 'magiclink', email, options: { redirectTo: base.toString() } });
       if (error) return json({ error: error.message }, { status: 500 }, origin);
       await service.from('profiles').update({ must_change_password: true }).eq('id', body.user_id);

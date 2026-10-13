@@ -3,8 +3,11 @@
 const ALLOWED_ORIGINS = [
   'https://charitytooling.com',
   'https://www.charitytooling.com',
+  'https://costtooling.com',
+  'https://www.costtooling.com',
   'http://localhost:5173',
   'http://localhost:4173',
+  'http://127.0.0.1:8766',
 ];
 
 export function corsHeaders(origin: string | null): HeadersInit {

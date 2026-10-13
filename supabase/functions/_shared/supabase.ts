@@ -30,6 +30,34 @@ export function serviceClient(): SupabaseClient {
   });
 }
 
+// Which app is calling. CharityTooling and CostTooling share this project and
+// its auth users; each has its own tenant tables. Account functions take an
+// optional `app` in the body and default to charity.
+export type AppKey = 'charity' | 'ct';
+export const APPS = {
+  charity: {
+    members: 'charity_members', invitations: 'invitations', tenantKey: 'charity_id', nameKey: 'charity_name',
+    roles: ['admin', 'rep'], lookup: 'lookup_code', consume: 'consume_code', newCode: 'new_invite_code',
+    base: 'https://charitytooling.com', originRe: /charitytooling\.com$|^localhost$/,
+    welcome(u: URL) { u.hash = '#/welcome'; },
+  },
+  ct: {
+    members: 'ct_company_members', invitations: 'ct_invitations', tenantKey: 'company_id', nameKey: 'company_name',
+    roles: ['admin', 'member'], lookup: 'ct_lookup_code', consume: 'ct_consume_code', newCode: 'ct_new_invite_code',
+    base: 'https://costtooling.com', originRe: /costtooling\.com$|^localhost$|^127\.0\.0\.1$/,
+    welcome(u: URL) { u.searchParams.set('auth', 'welcome'); },
+  },
+} as const;
+export function appOf(v: unknown): AppKey { return v === 'ct' ? 'ct' : 'charity'; }
+export function redirectBase(app: AppKey, origin: string | null): URL {
+  const cfg = APPS[app];
+  let base: string = cfg.base;
+  try { if (origin && cfg.originRe.test(new URL(origin).hostname)) base = origin; } catch { /* keep default */ }
+  const u = new URL(base);
+  cfg.welcome(u);
+  return u;
+}
+
 export async function requireUser(client: SupabaseClient) {
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) {
@@ -50,23 +78,19 @@ export async function requireSuperAdmin(client: SupabaseClient) {
   return user;
 }
 
-export async function requireCharityAdmin(client: SupabaseClient, charityId: string) {
+// Tenant-aware admin check: super admin, or an active admin of the tenant in the given app.
+export async function requireTenantAdmin(client: SupabaseClient, app: AppKey, tenantId: string) {
   const user = await requireUser(client);
-  // RLS will scope this; non-admin returns no row.
-  const { data: profile } = await client
-    .from('profiles')
-    .select('is_super_admin')
-    .eq('id', user.id)
-    .maybeSingle();
+  const { data: profile } = await client.from('profiles').select('is_super_admin').eq('id', user.id).maybeSingle();
   if (profile?.is_super_admin) return user;
-  const { data: m } = await client
-    .from('charity_members')
-    .select('role')
-    .eq('charity_id', charityId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (m?.role !== 'admin') throw new Response('Forbidden', { status: 403 });
+  const cfg = APPS[app];
+  const { data: m } = await client.from(cfg.members).select('role, deactivated_at').eq(cfg.tenantKey, tenantId).eq('user_id', user.id).maybeSingle();
+  if (m?.role !== 'admin' || m?.deactivated_at) throw new Response('Forbidden', { status: 403 });
   return user;
+}
+
+export async function requireCharityAdmin(client: SupabaseClient, charityId: string) {
+  return requireTenantAdmin(client, 'charity', charityId);
 }
 
 export async function requireCharityMember(client: SupabaseClient, charityId: string) {
