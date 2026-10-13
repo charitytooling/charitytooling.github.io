@@ -134,13 +134,20 @@ begin
 end $$;
 grant execute on function public.rotate_join_code(uuid, text, int, int) to authenticated;
 
+-- Accepts 'theo vyaj', 'THEOVYAJ' or 'THEO-VYAJ' and returns 'THEO-VYAJ'.
+create or replace function private.normalize_code(p text)
+returns text language sql immutable as $$
+  select case when length(c) > 4 then substr(c, 1, 4) || '-' || substr(c, 5) else c end
+  from (select upper(regexp_replace(coalesce(p, ''), '[^A-Za-z0-9]', '', 'g')) as c) t;
+$$;
+
 -- =============================================================================
 -- 7. lookup / consume: used only by the join-with-code Edge Function
 -- =============================================================================
 create or replace function public.lookup_code(p_code text)
 returns table (kind text, charity_id uuid, charity_name text, role text, email text, invited_by uuid, valid boolean, reason text)
 language plpgsql security definer stable set search_path = public, pg_temp as $$
-declare inv public.invitations; jc public.join_codes; c text := upper(regexp_replace(coalesce(p_code,''), '\s', '', 'g'));
+declare inv public.invitations; jc public.join_codes; c text := private.normalize_code(p_code);
 begin
   select * into inv from public.invitations where code = c;
   if found then
@@ -165,7 +172,7 @@ grant execute on function public.lookup_code(text) to service_role;
 
 create or replace function public.consume_code(p_code text)
 returns boolean language plpgsql security definer set search_path = public, pg_temp as $$
-declare c text := upper(regexp_replace(coalesce(p_code,''), '\s', '', 'g')); n int;
+declare c text := private.normalize_code(p_code); n int;
 begin
   update public.invitations set uses = uses + 1,
          accepted_at = case when uses + 1 >= max_uses then now() else accepted_at end
