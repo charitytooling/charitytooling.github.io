@@ -3,7 +3,7 @@
 Phone-first PWA for charity reps to research, contact, and follow up with donors.
 
 - Static SPA hosted on GitHub Pages at `https://charitytooling.com`
-- Auth, data, edge functions, and storage on a single Supabase project
+- Auth, data, edge functions, and storage on a single Supabase project, shared with CostTooling (see `docs/multi-app-tenancy.md`)
 - Resend for transactional email and donation receipts
 - Web Push (VAPID) for iOS/Android home-screen PWA notifications
 - Stripe Connect (later phase) for card donations
@@ -28,8 +28,10 @@ src/                  # React app
   state/              # Lightweight client state hooks
   sw.ts               # Custom service worker (precache + push handlers)
 supabase/
-  migrations/         # Versioned SQL (single 0001_init.sql to start)
-  functions/          # Edge Function stubs (one folder per function)
+  migrations/         # Versioned SQL, applied in order
+  functions/          # Edge Functions (one folder per function; _shared/ is bundled into each)
+docs/
+  multi-app-tenancy.md  # CostTooling shares this project: what is shared, what is per app, how to add an app
 public/
   CNAME               # charitytooling.com
   icon.svg            # Source icon (SVG)
