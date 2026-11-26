@@ -24,6 +24,7 @@ adding a third app.
 | Edge Functions `invite-user`, `join-with-code`, `admin-reset` | `supabase/functions/` | One function serves every app. The request body carries `app: 'charity' \| 'ct'`; missing means `charity`. |
 | `APPS` table | `supabase/functions/_shared/supabase.ts` | The single place that maps an app key to its tables, RPC names, roles, base URL and welcome route. Adding an app is mostly adding an entry here. |
 | CORS allow list | `supabase/functions/_shared/cors.ts` | Every app origin, plus local dev origins. |
+| Edge Function `admin-accounts` | `supabase/functions/admin-accounts/` | The list behind the admin page at costtooling.com/admin/ and casetooling.com/admin/. Super admin only. It reads every account with its ways in and the sites it is on, as counts and roles, and never a case, a job or a photo. It changes nothing. |
 | `auth-email` Edge Function | `supabase/functions/auth-email/` | Supabase's Send Email hook. Replaces the stock mailer for every sign-in email. Picks the brand from the link's host and sends through Resend. |
 | Resend | Resend dashboard | One API key (`RESEND_API_KEY` function secret). Each app's sending domain must be verified there or the mailer falls back to a charitytooling.com sender. |
 | Auth settings | Supabase dashboard, Authentication | Redirect URL allow list, Site URL, the Send Email hook, password rules. Site URL stays charitytooling.com; other apps are reached through the allow list. |

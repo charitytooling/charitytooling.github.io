@@ -62,6 +62,11 @@ verify_jwt = false
 [functions.admin-reset]
 verify_jwt = true
 
+[functions.admin-accounts]
+# The admin page on costtooling.com/admin/ and casetooling.com/admin/ calls it with the admin's own sign-in.
+# The function asks the Auth server who is calling and answers a super admin only.
+verify_jwt = false
+
 [functions.send-email]
 verify_jwt = true
 
