@@ -1,7 +1,8 @@
 # Two apps, one Supabase project
 
 CharityTooling (charitytooling.com) and CostTooling (costtooling.com) share
-the Supabase project `cjwybuhogxyayjnuxpem` ("charity-tooling"). They share
+the Supabase project `cjwybuhogxyayjnuxpem` ("shared-tooling", named
+"charity-tooling" until 2026-11-26). They share
 sign-in, user profiles, the account Edge Functions and the email sender. Each
 app keeps its own data in its own tables with its own row-level security.
 This repo owns the database: every migration and every Edge Function lives
