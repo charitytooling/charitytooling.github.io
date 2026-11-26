@@ -4,18 +4,26 @@
 // every account on this project with the ways it signs in and the sites it is on.
 //
 // Body: { action: 'list' }
+//       { action: 'block' | 'unblock', user_id }
 //
 // Auth: the caller's own sign-in, and only a super admin (profiles.is_super_admin) is
 // answered. Anyone else gets a 403 and no list. The gateway's JWT check is off for this
 // function (config.toml): the function asks the Auth server who is calling, so a browser
 // session is checked the same way whatever key signed it.
 //
-// It only reads. It never returns a case, a job, a photo or a note: for each site it
+// `list` only reads. It never returns a case, a job, a photo or a note: for each site it
 // says whether the account is on it, in what role, and how many things it holds there.
 // CaseTooling's own rules let nobody but a case's people read it, and this function
 // keeps to counts for that reason.
 //
-// The actions that change an account (turn off, reset, delete) are not here yet.
+// `block` stops an account signing in to every site on this project, and `unblock` lets
+// it sign in again. They do what admin-reset's suspend and unsuspend do (the Auth ban and
+// profiles.suspended_at), and each writes an audit_log row. Nothing the account owns is
+// removed. An admin cannot block their own account, and a super admin cannot be blocked
+// from here, so the project is never left with nobody who can open this page. A session
+// the account already holds runs until its token ends, up to an hour.
+//
+// Reset and delete are not here yet.
 
 import { requireSuperAdmin, serviceClient, userClient } from '../_shared/supabase.ts';
 
@@ -71,17 +79,37 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405, origin);
 
   try {
+    let caller: { id: string };
     try {
-      await requireSuperAdmin(userClient(req));
+      caller = await requireSuperAdmin(userClient(req));
     } catch (e) {
       const status = e instanceof Response ? e.status : 401;
       return json({ error: status === 403 ? 'This page is for the admin.' : 'Sign in first.' }, status === 403 ? 403 : 401, origin);
     }
 
-    const body = (await req.json().catch(() => ({}))) as { action?: string };
-    if (body.action !== 'list') return json({ error: 'Unknown action.' }, 400, origin);
-
+    const body = (await req.json().catch(() => ({}))) as { action?: string; user_id?: string };
     const service = serviceClient();
+
+    if (body.action === 'block' || body.action === 'unblock') {
+      const targetId = String(body.user_id ?? '');
+      if (!/^[0-9a-f-]{36}$/i.test(targetId)) return json({ error: 'Say which account.' }, 400, origin);
+      if (targetId === caller.id) return json({ error: 'You cannot block your own account.' }, 409, origin);
+      const { data: target, error: targetErr } = await service.from('profiles').select('id, is_super_admin').eq('id', targetId).maybeSingle();
+      if (targetErr) return json({ error: `The account could not be read: ${targetErr.message}` }, 500, origin);
+      if (!target) return json({ error: 'That account is not on this project.' }, 404, origin);
+      if (target.is_super_admin) return json({ error: 'An admin cannot be blocked from this page.' }, 409, origin);
+      const blocking = body.action === 'block';
+      const { error } = await service.auth.admin.updateUserById(targetId, { ban_duration: blocking ? '876000h' : 'none' });
+      if (error) return json({ error: `The account could not be ${blocking ? 'blocked' : 'unblocked'}: ${error.message}` }, 500, origin);
+      await service.from('profiles').update({ suspended_at: blocking ? new Date().toISOString() : null }).eq('id', targetId);
+      await service.from('audit_log').insert({
+        actor_id: caller.id, charity_id: null, entity_type: 'account', entity_id: targetId, action: 'update',
+        diff: { method: blocking ? 'suspend' : 'unsuspend', via: 'admin-accounts' },
+      });
+      return json({ ok: true, user_id: targetId, off: blocking }, 200, origin);
+    }
+
+    if (body.action !== 'list') return json({ error: 'Unknown action.' }, 400, origin);
 
     const users: AuthUser[] = [];
     for (let page = 1; page <= 50; page++) {
